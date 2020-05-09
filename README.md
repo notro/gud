@@ -1,2 +1,1 @@
-# gud
-Generic USB Display
+Wiki: https://github.com/notro/gud/wiki
