@@ -179,9 +179,11 @@ class USBmonURB:
         if len(self.data) != self.len:
             s += f'({self.len}'
         if self.len != self.first.len_urb:
-            s = f'/{self.first.len_urb}'
+            s += f'/{self.first.len_urb}'
         if len(self.data) != self.len:
             s += ')'
+        if self.status:
+            s += f' status={self.status}'
 
         return s
 
@@ -948,7 +950,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='GUD USB monitor')
     parser.add_argument('--debug', '-d', action='count', default=0, help='increase debug output')
     parser.add_argument('busnum', nargs='?', type=int, help='USB busnum when monitoring before device plugin')
-    parser.add_argument('--device', '-D', type=device_arg_check, help='Device to monitor: vid:pid (in hexadecimal) default=1d50:6150', default='1d50:6150')
+    parser.add_argument('--device', '-D', type=device_arg_check, help='Device to monitor: vid:pid (in hexadecimal) default=1d50:614d', default='1d50:614d')
 
     args = parser.parse_args()
     vid, pid = device_arg_split(args.device)
