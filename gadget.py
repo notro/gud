@@ -265,7 +265,7 @@ config = {
     'bDeviceSubClass': None,
     'bMaxPacketSize0': None,
     'idVendor': '0x1d50',
-    'idProduct': '0x6150',
+    'idProduct': '0x614d',
 
     'configs': {
         'c.1': {
