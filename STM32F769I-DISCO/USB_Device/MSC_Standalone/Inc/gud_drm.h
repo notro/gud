@@ -108,7 +108,6 @@ struct gud_drm_display_mode {
 	__le16 vsync_end;
 	__le16 vtotal;
 	__le16 vscan;
-	__le32 vrefresh;
 	__le32 flags;
 	__u8 type;
 } __packed;
