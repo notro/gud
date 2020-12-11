@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+
+start() {
+	if grep -q ledoff /proc/cmdline; then
+		echo none > /sys/class/leds/led0/trigger
+		if [ -f /sys/class/leds/led1/brightness ]; then
+			# The Power LED on Pi4
+			echo 0 > /sys/class/leds/led1/brightness
+		fi
+	else
+		echo gud-flush > /sys/class/leds/led0/trigger
+	fi
+}
+
+case "$1" in
+  start)
+	start
+	;;
+  stop)
+	;;
+  *)
+	echo "Usage: $0 {start|stop}"
+	exit 1
+esac

@@ -1,0 +1,17 @@
+init: respawn only if tty exists
+
+This makes it possible to have runtime configuration of the gadget serial console.
+
+Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+
+diff -u busybox-1.32.0.org/init/init.c busybox-1.32.0/init/init.c
+--- busybox-1.32.0.org/init/init.c	2020-06-26 20:47:44.000000000 +0200
++++ busybox-1.32.0/init/init.c	2021-01-09 10:18:00.246280245 +0100
+@@ -609,6 +609,7 @@
+ 			 * it is already running
+ 			 */
+ 			if (a->pid == 0)
++				if (!a->terminal[0] || access(a->terminal, F_OK) == 0)
+ 				a->pid = run(a);
+ 		}
+ 	}

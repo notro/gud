@@ -1,0 +1,67 @@
+No progress bar border, black background
+
+Also disable double buffering since since it's not necessary.
+This removes an annoying error message.
+(CONFIG_DRM_FBDEV_OVERALLOC=200 or drm_kms_helper.drm_fbdev_overalloc=200
+will enable support for double buffering)
+
+Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+
+diff -aur psplash-fd33a9b3d68c89fa22ff6873f4f9fd28bd85830c.org/psplash.c psplash-fd33a9b3d68c89fa22ff6873f4f9fd28bd85830c/psplash.c
+--- psplash-fd33a9b3d68c89fa22ff6873f4f9fd28bd85830c.org/psplash.c	2020-01-22 00:23:44.000000000 +0100
++++ psplash-fd33a9b3d68c89fa22ff6873f4f9fd28bd85830c/psplash.c	2020-12-22 15:34:11.116737114 +0100
+@@ -304,6 +304,7 @@
+ 			 POKY_IMG_ROWSTRIDE,
+ 			 POKY_IMG_RLE_PIXEL_DATA);
+ 
++#if 0
+   /* Draw progress bar border */
+   psplash_fb_draw_image (fb, 
+ 			 (fb->width  - BAR_IMG_WIDTH)/2, 
+@@ -315,6 +316,7 @@
+ 			 BAR_IMG_RLE_PIXEL_DATA);
+ 
+   psplash_draw_progress (fb, 0);
++#endif
+ 
+ #ifdef PSPLASH_STARTUP_MSG
+   psplash_draw_msg (fb, PSPLASH_STARTUP_MSG);
+diff -aur psplash-fd33a9b3d68c89fa22ff6873f4f9fd28bd85830c.org/psplash-colors.h psplash-fd33a9b3d68c89fa22ff6873f4f9fd28bd85830c/psplash-colors.h
+--- psplash-fd33a9b3d68c89fa22ff6873f4f9fd28bd85830c.org/psplash-colors.h	2020-01-22 00:23:44.000000000 +0100
++++ psplash-fd33a9b3d68c89fa22ff6873f4f9fd28bd85830c/psplash-colors.h	2020-12-22 15:30:05.116696282 +0100
+@@ -12,7 +12,7 @@
+ #define _HAVE_PSPLASH_COLORS_H
+ 
+ /* This is the overall background color */
+-#define PSPLASH_BACKGROUND_COLOR 0xec,0xec,0xe1
++#define PSPLASH_BACKGROUND_COLOR 0x00,0x00,0x00
+ 
+ /* This is the color of any text output */
+ #define PSPLASH_TEXT_COLOR 0x6d,0x6d,0x70
+@@ -21,6 +21,6 @@
+ #define PSPLASH_BAR_COLOR 0x6d,0x6d,0x70
+ 
+ /* This is the color of the progress bar background */
+-#define PSPLASH_BAR_BACKGROUND_COLOR 0xec,0xec,0xe1
++#define PSPLASH_BAR_BACKGROUND_COLOR 0x00,0x00,0x00
+ 
+ #endif
+diff -aur psplash-fd33a9b3d68c89fa22ff6873f4f9fd28bd85830c.org/psplash-fb.c psplash-fd33a9b3d68c89fa22ff6873f4f9fd28bd85830c/psplash-fb.c
+--- psplash-fd33a9b3d68c89fa22ff6873f4f9fd28bd85830c.org/psplash-fb.c	2020-01-22 00:23:44.000000000 +0100
++++ psplash-fd33a9b3d68c89fa22ff6873f4f9fd28bd85830c/psplash-fb.c	2020-12-22 15:34:18.715813394 +0100
+@@ -195,6 +195,7 @@
+       goto fail;
+     }
+ 
++#if 0
+   /* Setup double virtual resolution for double buffering */
+   if (ioctl(fb->fd, FBIOPAN_DISPLAY, &fb_var) == -1) {
+     fprintf(stderr, "FBIOPAN_DISPLAY not supported, double buffering disabled");
+@@ -217,6 +218,7 @@
+       }
+     }
+   }
++#endif
+ 
+   fb->real_width  = fb->width  = fb_var.xres;
+   fb->real_height = fb->height = fb_var.yres;

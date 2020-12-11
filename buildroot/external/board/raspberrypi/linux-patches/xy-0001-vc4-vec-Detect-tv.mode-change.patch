@@ -1,0 +1,56 @@
+From 801f46fe0a1e9b7877600d0ecc44cb4707d4c681 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
+Date: Thu, 31 Dec 2020 21:56:45 +0100
+Subject: [PATCH 1/4] vc4: vec: Detect tv.mode change
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When tv.mode changes make sure to do a modeset.
+
+Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+---
+ drivers/gpu/drm/vc4/vc4_vec.c | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/drivers/gpu/drm/vc4/vc4_vec.c b/drivers/gpu/drm/vc4/vc4_vec.c
+index bd5b8eb58b18..985044f44ab4 100644
+--- a/drivers/gpu/drm/vc4/vc4_vec.c
++++ b/drivers/gpu/drm/vc4/vc4_vec.c
+@@ -331,6 +331,25 @@ static int vc4_vec_connector_get_modes(struct drm_connector *connector)
+ 	return 1;
+ }
+ 
++static int vc4_vec_connector_atomic_check(struct drm_connector *connector,
++					  struct drm_atomic_state *state)
++{
++	struct drm_connector_state *new_conn_state, *old_conn_state;
++	struct drm_crtc_state *new_crtc_state;
++
++	new_conn_state = drm_atomic_get_new_connector_state(state, connector);
++	if (!new_conn_state->crtc)
++		return 0;
++
++	old_conn_state = drm_atomic_get_old_connector_state(state, connector);
++	new_crtc_state = drm_atomic_get_new_crtc_state(state, new_conn_state->crtc);
++
++	if (old_conn_state->tv.mode != new_conn_state->tv.mode)
++		new_crtc_state->connectors_changed = true;
++
++	return 0;
++}
++
+ static const struct drm_connector_funcs vc4_vec_connector_funcs = {
+ 	.detect = vc4_vec_connector_detect,
+ 	.fill_modes = drm_helper_probe_single_connector_modes,
+@@ -342,6 +361,7 @@ static const struct drm_connector_funcs vc4_vec_connector_funcs = {
+ 
+ static const struct drm_connector_helper_funcs vc4_vec_connector_helper_funcs = {
+ 	.get_modes = vc4_vec_connector_get_modes,
++	.atomic_check = vc4_vec_connector_atomic_check,
+ };
+ 
+ static struct drm_connector *vc4_vec_connector_init(struct drm_device *dev,
+-- 
+2.23.0
+

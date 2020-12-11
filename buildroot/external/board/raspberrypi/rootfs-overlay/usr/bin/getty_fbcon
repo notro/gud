@@ -1,0 +1,10 @@
+#!/bin/sh
+
+# put a console on the framebuffer
+
+if grep -vq "quiet" /proc/cmdline; then
+	echo -e '\033[?25h' > /dev/tty1 # Enable cursor
+	/sbin/getty -L tty1 0 vt100
+else
+	sleep inf
+fi

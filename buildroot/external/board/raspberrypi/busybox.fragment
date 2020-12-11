@@ -1,0 +1,2 @@
+# Log to syslog too, Release IP on exit, Send up to 10 discover packets, Background if lease is not obtained
+CONFIG_IFUPDOWN_UDHCPC_CMD_OPTIONS="-S -R -t 10 -b"

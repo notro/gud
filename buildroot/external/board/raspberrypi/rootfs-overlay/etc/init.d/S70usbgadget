@@ -1,0 +1,147 @@
+#!/bin/sh
+
+# USB Display Gadget
+
+. /etc/os-release
+
+HW=$(cat /proc/cpuinfo | grep ^Hardware | cut -d":" -f2 | tr -d '[:space:]')
+SN=$(cat /proc/cpuinfo | grep ^Serial | cut -d":" -f2 | tr -d '[:space:]')
+
+if [ "$HW" = "BCM2835" ]; then
+	PRODUCT="Raspberry Pi Zero Display Gadget"
+	MAXPOWER=120 # mA
+elif [ "$HW" = "BCM2711" ]; then
+	PRODUCT="Raspberry Pi 4 Display Gadget"
+	MAXPOWER=500 # mA
+else
+	PRODUCT="$HW Display Gadget"
+	MAXPOWER=500 # mA
+fi
+
+if [ -f /etc/network/interfaces ]; then
+	UDC="usbip-vudc.0"
+else
+	UDC=$(ls /sys/class/udc | cut -f1 | grep -v usbip | head -n1)
+fi
+
+start() {
+	cd /sys/kernel/config/usb_gadget
+	mkdir g1
+	cd g1
+
+	echo 0x1d50 > idVendor
+	echo 0x614d > idProduct
+
+	if [ -n "$GUD_VERSION_BCD" ]; then
+		echo "$GUD_VERSION_BCD" > bcdDevice
+	fi
+
+	mkdir strings/0x409
+	#echo "XXX" > strings/0x409/manufacturer
+	echo "$PRODUCT" > strings/0x409/product
+	echo "$SN" > strings/0x409/serialnumber
+
+	mkdir configs/c.1
+	echo "$MAXPOWER" > configs/c.1/MaxPower
+
+	if [ -f /boot/gadget_console ]; then
+		# Serial
+		mkdir functions/acm.usb0
+		ln -s functions/acm.usb0/ configs/c.1/
+	fi
+
+	if [ -e /sys/class/drm/card0 ]; then
+		mkdir functions/gud.0
+		echo 0 > functions/gud.0/drm_dev
+		ln -s functions/gud.0/ configs/c.1/
+	fi
+
+	echo "$UDC" > UDC
+	status=$?
+
+	if [ "$UDC" = "usbip-vudc.0" ]; then
+		/usr/sbin/usbipd -D --device --pid
+	fi
+
+	return "$status"
+}
+
+stop() {
+	if [ -e /var/run/usbipd.pid ]; then
+		start-stop-daemon -K -q -p /var/run/usbipd.pid
+	fi
+
+	cd /sys/kernel/config/usb_gadget
+	if [ -d "g1" ]; then
+		cd g1
+		echo > UDC 2> /dev/null
+		find configs/c.1/ -maxdepth 1 -type l -exec rm -f {} +
+		rmdir configs/c.1
+		[ -e functions/gud.0 ] && rmdir functions/gud.0
+
+		if [ -e functions/acm.usb0 ]; then
+			# getty prevents the function from being removed so put rmdir
+			# in the background and then kill getty.
+			rmdir functions/acm.usb0 &
+			sleep 0.1
+			pkill -f ttyGS0
+		fi
+
+		rmdir strings/0x409
+		cd ..
+		rmdir g1
+	fi
+}
+
+status() {
+	cd /sys/kernel/config/usb_gadget
+	if [ -d "g1" ]; then
+		if [ -s "g1/UDC" ]; then
+			echo "Running"
+		else
+			echo "Partially configured"
+		fi
+	else
+		echo "Stopped"
+	fi
+}
+
+debug() {
+	cd /sys/kernel/config/usb_gadget
+	if [ -d "g1" ]; then
+		if [ -s "g1/UDC" ]; then
+			if [ -e /var/run/usbipd.pid ]; then
+				echo "Address:"
+				ifconfig eth0 | grep "addr:"
+				echo
+				echo "Ports:"
+				netstat -tln
+				netstat -tn | grep tcp
+			fi
+		fi
+		echo
+		echo "Configuration:"
+		find g1 -type f -exec printf '%s: ' {} \; -exec cat {} \;
+	fi
+}
+
+case "$1" in
+  start)
+	start;;
+  stop)
+	stop;;
+  restart|reload)
+	stop
+	sleep 1
+	start
+	;;
+  status)
+	status;;
+  debug)
+	debug;;
+  *)
+	echo "Usage: $0 {start|stop|restart|status|debug}"
+	exit 1
+esac
+
+exit $?

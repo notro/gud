@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# psplash
+#
+
+start() {
+	/usr/bin/psplash -n &
+	status=$?
+	touch /var/lock/psplash
+	return "$status"
+}
+
+stop() {
+	killall psplash
+	status=$?
+	rm -f /var/lock/psplash
+	return "$status"
+}
+
+restart() {
+	stop
+	start
+}
+
+case "$1" in
+  start)
+	start
+	;;
+  stop)
+	stop
+	;;
+  restart|reload)
+	restart
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?

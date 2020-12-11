@@ -1,0 +1,18 @@
+udhcp: Only log to syslog
+
+Stay quiet and don't write to the console.
+
+Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+
+diff -u busybox-1.32.0.org/networking/udhcp/dhcpc.c busybox-1.32.0/networking/udhcp/dhcpc.c
+--- busybox-1.32.0.org/networking/udhcp/dhcpc.c	2020-06-26 20:47:44.000000000 +0200
++++ busybox-1.32.0/networking/udhcp/dhcpc.c	2021-01-08 14:14:32.703522548 +0100
+@@ -1346,7 +1346,7 @@
+ #endif
+ 	if (opt & OPT_S) {
+ 		openlog(applet_name, LOG_PID, LOG_DAEMON);
+-		logmode |= LOGMODE_SYSLOG;
++		logmode = LOGMODE_SYSLOG;
+ 	}
+ 
+ 	/* Create pidfile */

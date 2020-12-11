@@ -1,0 +1,11 @@
+#!/bin/sh
+
+if mount | grep /dev/root | grep -q rw; then
+	mount -o remount,ro /
+fi
+
+if mount | grep /boot | grep -q rw; then
+	mount -o remount,ro /boot
+fi
+
+mount | grep -E "root|boot"

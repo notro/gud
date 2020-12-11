@@ -1,0 +1,1 @@
+source "$BR2_EXTERNAL_GUD_PATH/package/usbip/Config.in"

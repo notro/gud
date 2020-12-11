@@ -1,0 +1,26 @@
+#!/bin/sh
+
+case "$1" in
+	discover)
+		if [ -e /var/run/udhcp-discover-count ]; then
+			count=$(cat /var/run/udhcp-discover-count)
+		else
+			count=0
+		fi
+
+		count=$((count + 1))
+		echo $count > /var/run/udhcp-discover-count
+
+		if [ "$count" -gt 19 ]; then
+			n=1
+		elif [ "$count" -gt 9 ]; then
+			n=5
+		else
+			n=10
+		fi
+
+		/usr/bin/psplash-write "PROGRESS $((count * n))"
+		;;
+esac
+
+exit 0

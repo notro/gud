@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# Prevent fbdev from taking back the display on hotplug and restore
+#
+
+start() {
+	echo 0 > /sys/module/drm_kms_helper/parameters/fbdev_emulation
+}
+
+stop() {
+	echo 1 > /sys/module/drm_kms_helper/parameters/fbdev_emulation
+}
+
+case "$1" in
+  start)
+	start
+	;;
+  stop)
+	stop
+	;;
+  *)
+	echo "Usage: $0 {start|stop}"
+	exit 1
+esac

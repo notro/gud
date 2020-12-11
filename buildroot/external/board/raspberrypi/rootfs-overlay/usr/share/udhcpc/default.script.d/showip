@@ -1,0 +1,10 @@
+#!/bin/sh
+
+case "$1" in
+	renew|bound)
+		/usr/bin/psplash-write "MSG $(hostname).local $ip"
+		/usr/bin/psplash-write "PROGRESS 0"
+		;;
+esac
+
+exit 0

@@ -1,0 +1,16 @@
+config BR2_PACKAGE_USBIP
+	bool "usbip"
+	depends on BR2_PACKAGE_HAS_UDEV
+	depends on BR2_TOOLCHAIN_HAS_THREADS # usbutils <- libusb
+	depends on BR2_TOOLCHAIN_HEADERS_AT_LEAST_3_17
+	depends on !BR2_STATIC_LIBS
+	select BR2_PACKAGE_USBUTILS
+	select BR2_PACKAGE_HWDATA
+	select BR2_PACKAGE_HWDATA_USB_IDS
+	help
+	  usbip is a set of tools that allows machines to share their
+	  usb devices over the network, to be driven by a remote client.
+
+comment "usbip needs udev /dev management and a toolchain w/ threads, dynamic library, headers >= 3.17"
+	depends on !BR2_PACKAGE_HAS_UDEV || !BR2_TOOLCHAIN_HAS_THREADS \
+		|| BR2_STATIC_LIBS || !BR2_TOOLCHAIN_HEADERS_AT_LEAST_3_17

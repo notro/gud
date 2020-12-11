@@ -1,0 +1,47 @@
+#!/bin/sh
+
+
+log_msg ()
+{
+    console=--
+    if grep -vq "quiet" /proc/cmdline || [ "$2" -ne 0 ]; then
+	console="-s"
+    fi
+    [ "$2" -eq 0 ] && prio="daemon.info" || prio="daemon.err"
+    echo "$1" | /usr/bin/logger -t "init" -p "${prio}" "${console}"
+}
+
+# Start all init scripts in /etc/init.d
+# executing them in numerical order.
+#
+for i in /etc/init.d/S??* ;do
+
+     # Ignore dangling symlinks (if any).
+     [ ! -f "$i" ] && continue
+
+     case "$i" in
+	*.sh)
+	    # Source shell script for speed.
+	    (
+		trap - INT QUIT TSTP
+		set start
+		. $i
+	    )
+	    ;;
+	*)
+	    name=$(echo $i | awk -F/ '{print $NF}' | cut -c4-)
+	    log_msg "Starting $name..." 0
+
+	    # No sh extension, so fork subprocess.
+	    $i start
+	    status=$?
+
+	    if [ "$status" -eq 0 ]; then
+		log_msg "Started $name" 0
+	    else
+		log_msg "Failed to start $name" "$status"
+	    fi
+	    ;;
+    esac
+done
+

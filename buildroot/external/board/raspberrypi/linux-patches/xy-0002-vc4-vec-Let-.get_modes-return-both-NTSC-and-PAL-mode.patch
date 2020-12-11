@@ -1,0 +1,123 @@
+From 73bc96652a2726131176b7c285042634be5b1c3d Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
+Date: Thu, 31 Dec 2020 22:04:24 +0100
+Subject: [PATCH 2/4] vc4: vec: Let .get_modes return both NTSC and PAL modes
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Simplify switching between NTSC and PAL by returning both display modes
+to userspace. The uncommon variants must still be selected using the
+connector 'mode' property. Userspace has poor support for this property.
+
+This also lifts the restriction that it was not possible to change
+from/to NTSC/PAL after the first modeset.
+
+Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+---
+ drivers/gpu/drm/vc4/vc4_vec.c | 63 +++++++++++++++++++++++++----------
+ 1 file changed, 45 insertions(+), 18 deletions(-)
+
+diff --git a/drivers/gpu/drm/vc4/vc4_vec.c b/drivers/gpu/drm/vc4/vc4_vec.c
+index 985044f44ab4..c0bb10abbe62 100644
+--- a/drivers/gpu/drm/vc4/vc4_vec.c
++++ b/drivers/gpu/drm/vc4/vc4_vec.c
+@@ -302,6 +302,11 @@ static const struct vc4_vec_tv_mode vc4_vec_tv_modes[] = {
+ 	},
+ };
+ 
++static const struct drm_display_mode *vc4_vec_display_modes[] = {
++	&ntsc_mode,
++	&pal_mode,
++};
++
+ static enum drm_connector_status
+ vc4_vec_connector_detect(struct drm_connector *connector, bool force)
+ {
+@@ -316,19 +321,21 @@ static void vc4_vec_connector_destroy(struct drm_connector *connector)
+ 
+ static int vc4_vec_connector_get_modes(struct drm_connector *connector)
+ {
+-	struct drm_connector_state *state = connector->state;
+-	struct drm_display_mode *mode;
++	unsigned int i;
+ 
+-	mode = drm_mode_duplicate(connector->dev,
+-				  vc4_vec_tv_modes[state->tv.mode].mode);
+-	if (!mode) {
+-		DRM_ERROR("Failed to create a new display mode\n");
+-		return -ENOMEM;
+-	}
++	for (i = 0; i < ARRAY_SIZE(vc4_vec_display_modes); i++) {
++		struct drm_display_mode *mode;
++
++		mode = drm_mode_duplicate(connector->dev, vc4_vec_display_modes[i]);
++		if (!mode)
++			return i;
+ 
+-	drm_mode_probed_add(connector, mode);
++		if (drm_mode_equal(mode, vc4_vec_tv_modes[connector->state->tv.mode].mode))
++			mode->type |= DRM_MODE_TYPE_PREFERRED;
++		drm_mode_probed_add(connector, mode);
++	}
+ 
+-	return 1;
++	return i;
+ }
+ 
+ static int vc4_vec_connector_atomic_check(struct drm_connector *connector,
+@@ -500,23 +507,43 @@ static void vc4_vec_encoder_atomic_mode_set(struct drm_encoder *encoder,
+ {
+ 	struct vc4_vec_encoder *vc4_vec_encoder = to_vc4_vec_encoder(encoder);
+ 	struct vc4_vec *vec = vc4_vec_encoder->vec;
++	unsigned int tv_mode = conn_state->tv.mode;
++
++	if (drm_mode_equal(&ntsc_mode, &crtc_state->adjusted_mode)) {
++		switch (tv_mode) {
++		case VC4_VEC_TV_MODE_PAL:
++			fallthrough;
++		case VC4_VEC_TV_MODE_PAL_M:
++			tv_mode = VC4_VEC_TV_MODE_NTSC;
++		}
++	} else if (drm_mode_equal(&pal_mode, &crtc_state->adjusted_mode)) {
++		switch (tv_mode) {
++		case VC4_VEC_TV_MODE_NTSC:
++			fallthrough;
++		case VC4_VEC_TV_MODE_NTSC_J:
++			tv_mode = VC4_VEC_TV_MODE_PAL;
++		}
++	}
++
++	if (tv_mode != conn_state->tv.mode)
++		drm_dbg(encoder->dev, "[ENCODER:%s] Display mode overrides tv.mode: %u => %u\n",
++			encoder->name, conn_state->tv.mode, tv_mode);
+ 
+-	vec->tv_mode = &vc4_vec_tv_modes[conn_state->tv.mode];
++	vec->tv_mode = &vc4_vec_tv_modes[tv_mode];
+ }
+ 
+ static int vc4_vec_encoder_atomic_check(struct drm_encoder *encoder,
+ 					struct drm_crtc_state *crtc_state,
+ 					struct drm_connector_state *conn_state)
+ {
+-	const struct vc4_vec_tv_mode *vec_mode;
+-
+-	vec_mode = &vc4_vec_tv_modes[conn_state->tv.mode];
++	unsigned int i;
+ 
+-	if (conn_state->crtc &&
+-	    !drm_mode_equal(vec_mode->mode, &crtc_state->adjusted_mode))
+-		return -EINVAL;
++	for (i = 0; i < ARRAY_SIZE(vc4_vec_display_modes); i++) {
++		if (drm_mode_equal(vc4_vec_display_modes[i], &crtc_state->adjusted_mode))
++			return 0;
++	}
+ 
+-	return 0;
++	return -EINVAL;
+ }
+ 
+ static const struct drm_encoder_helper_funcs vc4_vec_encoder_helper_funcs = {
+-- 
+2.23.0
+

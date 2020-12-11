@@ -1,0 +1,26 @@
+#!/bin/sh
+
+boot() {
+	mount -o remount,rw /boot
+}
+
+root() {
+	mount -o remount,rw /
+}
+
+if [ $# -eq 0 ]; then
+	boot
+	root
+else
+	case "$1" in
+	  boot)
+		boot;;
+	  root)
+		root;;
+	  *)
+		echo "Usage: $0 [boot|root]"
+		exit 1
+	esac
+fi
+
+mount | grep -E "root|boot"

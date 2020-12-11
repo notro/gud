@@ -1,0 +1,79 @@
+From a29b873bc68c4460792bf53d863e3ebb04d0f865 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
+Date: Sat, 26 Dec 2020 19:49:31 +0100
+Subject: [PATCH] f_gud: Add LED trigger for flushing
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When the 'gud-flush' trigger is selected the LED is lit when the incoming
+buffer is written to the framebuffer.
+
+Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+---
+ drivers/usb/gadget/function/f_gud.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/drivers/usb/gadget/function/f_gud.c b/drivers/usb/gadget/function/f_gud.c
+index 1e5cababf952..0a93acfad165 100644
+--- a/drivers/usb/gadget/function/f_gud.c
++++ b/drivers/usb/gadget/function/f_gud.c
+@@ -8,6 +8,7 @@
+ #include <linux/configfs.h>
+ #include <linux/device.h>
+ #include <linux/kernel.h>
++#include <linux/leds.h>
+ #include <linux/list.h>
+ #include <linux/module.h>
+ #include <linux/mutex.h>
+@@ -19,6 +20,8 @@
+ 
+ #include <drm/gud.h>
+ 
++DEFINE_LED_TRIGGER(f_gud_ledtrig_flush);
++
+ struct f_gud {
+ 	struct usb_function func;
+ 	struct work_struct worker;
+@@ -238,6 +241,8 @@ static void f_gud_worker(struct work_struct *work)
+ 	if (bulk_pending) {
+ 		struct usb_request *req = fgd->bulk_req;
+ 
++		led_trigger_event(f_gud_ledtrig_flush, LED_FULL);
++
+ 		ret = gud_gadget_write_buffer(gdg, req->buf, req->actual);
+ 		if (ret)
+ 			pr_err("%s: Failed to write buffer, error=%d\n", __func__, ret);
+@@ -245,6 +250,8 @@ static void f_gud_worker(struct work_struct *work)
+ 		spin_lock_irqsave(&fgd->lock, flags);
+ 		fgd->bulk_pending = false;
+ 		spin_unlock_irqrestore(&fgd->lock, flags);
++
++		led_trigger_event(f_gud_ledtrig_flush, LED_OFF);
+ 	}
+ 
+ 	if (ctrl_pending) {
+@@ -709,6 +716,9 @@ static void f_gud_free_func_inst(struct usb_function_instance *fi)
+ {
+ 	struct f_gud_opts *opts = fi_to_f_gud_opts(fi);
+ 
++#if CONFIG_LEDS_TRIGGERS
++	led_trigger_unregister_simple(f_gud_ledtrig_flush);
++#endif
+ 	mutex_destroy(&opts->lock);
+ 	kfree(opts->backlight_dev);
+ 	kfree(opts);
+@@ -727,6 +737,10 @@ static struct usb_function_instance *f_gud_alloc_func_inst(void)
+ 
+ 	config_group_init_type_name(&opts->func_inst.group, "", &f_gud_func_type);
+ 
++#if CONFIG_LEDS_TRIGGERS
++	led_trigger_register_simple("gud-flush", &f_gud_ledtrig_flush);
++#endif
++
+ 	return &opts->func_inst;
+ }
+ 
+-- 
+2.23.0
+

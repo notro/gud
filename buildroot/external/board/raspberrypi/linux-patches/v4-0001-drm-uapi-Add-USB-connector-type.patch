@@ -1,0 +1,30 @@
+From fe22981e0dddc2f088f32d2679365b95cf323034 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
+Date: Fri, 9 Oct 2020 16:52:24 +0200
+Subject: [PATCH v4 1/9] drm/uapi: Add USB connector type
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add a connector type for USB connected display panels.
+
+Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+---
+ include/uapi/drm/drm_mode.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/uapi/drm/drm_mode.h b/include/uapi/drm/drm_mode.h
+index fed66a03c7ae..33024cc5d26e 100644
+--- a/include/uapi/drm/drm_mode.h
++++ b/include/uapi/drm/drm_mode.h
+@@ -367,6 +367,7 @@ enum drm_mode_subconnector {
+ #define DRM_MODE_CONNECTOR_DPI		17
+ #define DRM_MODE_CONNECTOR_WRITEBACK	18
+ #define DRM_MODE_CONNECTOR_SPI		19
++#define DRM_MODE_CONNECTOR_USB		20
+ 
+ /**
+  * struct drm_mode_get_connector - Get connector metadata.
+-- 
+2.23.0
+

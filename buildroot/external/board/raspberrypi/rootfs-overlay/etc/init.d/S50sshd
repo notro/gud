@@ -1,0 +1,38 @@
+#!/bin/sh
+#
+# sshd        Starts sshd.
+#
+
+[ -f /boot/ssh ] || exit 0
+
+umask 077
+
+start() {
+	/usr/sbin/sshd
+	status=$?
+	touch /var/lock/sshd
+	return "$status"
+}
+stop() {
+	killall sshd
+	rm -f /var/lock/sshd
+}
+restart() {
+	stop
+	start
+}
+
+case "$1" in
+  start)
+	start
+	;;
+  stop)
+	stop
+	;;
+  restart|reload)
+	restart
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac

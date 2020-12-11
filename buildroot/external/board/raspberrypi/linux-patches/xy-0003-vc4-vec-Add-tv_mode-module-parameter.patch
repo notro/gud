@@ -1,0 +1,77 @@
+From db2b0902be1faeabb4fb95934be0f922e6a0ab83 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
+Date: Thu, 31 Dec 2020 22:16:57 +0100
+Subject: [PATCH 3/4] vc4: vec: Add tv_mode module parameter
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Userspace has poor support for the connector 'mode' property.
+
+Just pass value 0 to drm_object_attach_property() since it's not used,
+the state value is.
+
+Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+---
+ drivers/gpu/drm/vc4/vc4_vec.c | 20 ++++++++++++++++----
+ 1 file changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/vc4/vc4_vec.c b/drivers/gpu/drm/vc4/vc4_vec.c
+index c0bb10abbe62..57c6cbfda038 100644
+--- a/drivers/gpu/drm/vc4/vc4_vec.c
++++ b/drivers/gpu/drm/vc4/vc4_vec.c
+@@ -20,6 +20,7 @@
+ #include <drm/drm_simple_kms_helper.h>
+ #include <linux/clk.h>
+ #include <linux/component.h>
++#include <linux/moduleparam.h>
+ #include <linux/of_graph.h>
+ #include <linux/of_platform.h>
+ #include <linux/pm_runtime.h>
+@@ -27,6 +28,10 @@
+ #include "vc4_drv.h"
+ #include "vc4_regs.h"
+ 
++static unsigned int vc4_vec_tv_mode_default;
++module_param_named(tv_mode, vc4_vec_tv_mode_default, uint, 0600);
++MODULE_PARM_DESC(tv_mode, "Default tv.mode: 0=NTSC (default), 1=NTSC-J, 2=PAL, 3=PAL-M\n");
++
+ /* WSE Registers */
+ #define VEC_WSE_RESET			0xc0
+ 
+@@ -357,11 +362,17 @@ static int vc4_vec_connector_atomic_check(struct drm_connector *connector,
+ 	return 0;
+ }
+ 
++static void vc4_vec_connector_reset(struct drm_connector *connector)
++{
++	drm_atomic_helper_connector_reset(connector);
++	connector->state->tv.mode = vc4_vec_tv_mode_default;
++}
++
+ static const struct drm_connector_funcs vc4_vec_connector_funcs = {
+ 	.detect = vc4_vec_connector_detect,
+ 	.fill_modes = drm_helper_probe_single_connector_modes,
+ 	.destroy = vc4_vec_connector_destroy,
+-	.reset = drm_atomic_helper_connector_reset,
++	.reset = vc4_vec_connector_reset,
+ 	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
+ 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
+ };
+@@ -393,9 +404,10 @@ static struct drm_connector *vc4_vec_connector_init(struct drm_device *dev,
+ 	drm_connector_helper_add(connector, &vc4_vec_connector_helper_funcs);
+ 
+ 	drm_object_attach_property(&connector->base,
+-				   dev->mode_config.tv_mode_property,
+-				   VC4_VEC_TV_MODE_NTSC);
+-	vec->tv_mode = &vc4_vec_tv_modes[VC4_VEC_TV_MODE_NTSC];
++				   dev->mode_config.tv_mode_property, 0);
++	if (vc4_vec_tv_mode_default > VC4_VEC_TV_MODE_PAL_M)
++		vc4_vec_tv_mode_default = 0;
++	vec->tv_mode = &vc4_vec_tv_modes[vc4_vec_tv_mode_default];
+ 
+ 	drm_connector_attach_encoder(connector, vec->encoder);
+ 
+-- 
+2.23.0
+

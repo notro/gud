@@ -1,0 +1,15 @@
+udhcp: Run script on discover
+
+Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+
+diff -u busybox-1.32.0.org/networking/udhcp/dhcpc.c busybox-1.32.0/networking/udhcp/dhcpc.c
+--- busybox-1.32.0.org/networking/udhcp/dhcpc.c	2020-06-26 20:47:44.000000000 +0200
++++ busybox-1.32.0/networking/udhcp/dhcpc.c	2021-01-08 14:10:02.288354471 +0100
+@@ -691,6 +691,7 @@
+ 	add_client_options(&packet);
+ 
+ 	bb_info_msg("sending %s", "discover");
++	udhcp_run_script(NULL, "discover");
+ 	return raw_bcast_from_client_data_ifindex(&packet, INADDR_ANY);
+ }
+ 
