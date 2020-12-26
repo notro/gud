@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # SPDX-License-Identifier: CC0-1.0
 
 import argparse
@@ -304,10 +306,9 @@ GUD_DRM_USB_DT_INTERFACE = (USB_TYPE_VENDOR | 0x4)
 def BIT(n):
     return 1 << n
 
-GUD_DRM_STATUS_PENDING  = BIT(0)
 
-USB_REQ_GET_DESCRIPTOR = 0x06
-
+GUD_DRM_USB_REQ_GET_STATUS = 0x00
+GUD_DRM_USB_REQ_GET_DESCRIPTOR = 0x01
 GUD_DRM_USB_REQ_SET_VERSION = 0x30
 GUD_DRM_USB_REQ_GET_FORMATS = 0x40
 GUD_DRM_USB_REQ_GET_PROPERTIES = 0x41
@@ -325,7 +326,7 @@ GUD_DRM_USB_REQ_SET_CONTROLLER_ENABLE = 0x63
 GUD_DRM_USB_REQ_SET_DISPLAY_ENABLE = 0x64
 
 req_to_name = {
-    USB_REQ_GET_DESCRIPTOR: 'USB_REQ_GET_DESCRIPTOR',
+    GUD_DRM_USB_REQ_GET_DESCRIPTOR: 'GUD_DRM_USB_REQ_GET_DESCRIPTOR',
     GUD_DRM_USB_REQ_SET_VERSION: 'GUD_DRM_USB_REQ_SET_VERSION',
     GUD_DRM_USB_REQ_GET_FORMATS: 'GUD_DRM_USB_REQ_GET_FORMATS',
     GUD_DRM_USB_REQ_GET_PROPERTIES: 'GUD_DRM_USB_REQ_GET_PROPERTIES',
@@ -343,24 +344,38 @@ req_to_name = {
     GUD_DRM_USB_REQ_SET_DISPLAY_ENABLE: 'GUD_DRM_USB_REQ_SET_DISPLAY_ENABLE',
 }
 
+GUD_STATUS_OK = 0x00
+GUD_STATUS_BUSY = 0x01
+GUD_STATUS_REQUEST_NOT_SUPPORTED = 0x02
+GUD_STATUS_PROTOCOL_ERROR = 0x03
+GUD_STATUS_INVALID_PARAMETER = 0x04
+GUD_STATUS_ERROR = 0x05
 
-GUD_DRM_PROPERTY_TV_SELECT_SUBCONNECTOR     = 1
-GUD_DRM_PROPERTY_TV_LEFT_MARGIN             = 2
-GUD_DRM_PROPERTY_TV_RIGHT_MARGIN            = 3
-GUD_DRM_PROPERTY_TV_TOP_MARGIN              = 4
-GUD_DRM_PROPERTY_TV_BOTTOM_MARGIN           = 5
-GUD_DRM_PROPERTY_TV_MODE                    = 6
-GUD_DRM_PROPERTY_TV_BRIGHTNESS              = 7
-GUD_DRM_PROPERTY_TV_CONTRAST                = 8
-GUD_DRM_PROPERTY_TV_FLICKER_REDUCTION       = 9
-GUD_DRM_PROPERTY_TV_OVERSCAN                = 10
-GUD_DRM_PROPERTY_TV_SATURATION              = 11
-GUD_DRM_PROPERTY_TV_HUE                     = 12
-GUD_DRM_PROPERTY_BACKLIGHT_BRIGHTNESS       = 13
+status_to_name = {
+    GUD_STATUS_OK: 'GUD_STATUS_OK',
+    GUD_STATUS_BUSY: 'GUD_STATUS_BUSY',
+    GUD_STATUS_REQUEST_NOT_SUPPORTED: 'GUD_STATUS_REQUEST_NOT_SUPPORTED',
+    GUD_STATUS_PROTOCOL_ERROR: 'GUD_STATUS_PROTOCOL_ERROR',
+    GUD_STATUS_INVALID_PARAMETER: 'GUD_STATUS_INVALID_PARAMETER',
+    GUD_STATUS_ERROR: 'GUD_STATUS_ERROR',
+}
+
+
+GUD_DRM_PROPERTY_TV_LEFT_MARGIN             = 1
+GUD_DRM_PROPERTY_TV_RIGHT_MARGIN            = 2
+GUD_DRM_PROPERTY_TV_TOP_MARGIN              = 3
+GUD_DRM_PROPERTY_TV_BOTTOM_MARGIN           = 4
+GUD_DRM_PROPERTY_TV_MODE                    = 5
+GUD_DRM_PROPERTY_TV_BRIGHTNESS              = 6
+GUD_DRM_PROPERTY_TV_CONTRAST                = 7
+GUD_DRM_PROPERTY_TV_FLICKER_REDUCTION       = 8
+GUD_DRM_PROPERTY_TV_OVERSCAN                = 9
+GUD_DRM_PROPERTY_TV_SATURATION              = 10
+GUD_DRM_PROPERTY_TV_HUE                     = 11
+GUD_DRM_PROPERTY_BACKLIGHT_BRIGHTNESS       = 12
 GUD_DRM_PROPERTY_ROTATION                   = 50
 
 prop_to_name = {
-    GUD_DRM_PROPERTY_TV_SELECT_SUBCONNECTOR: 'GUD_DRM_PROPERTY_TV_SELECT_SUBCONNECTOR',
     GUD_DRM_PROPERTY_TV_LEFT_MARGIN: 'GUD_DRM_PROPERTY_TV_LEFT_MARGIN',
     GUD_DRM_PROPERTY_TV_RIGHT_MARGIN: 'GUD_DRM_PROPERTY_TV_RIGHT_MARGIN',
     GUD_DRM_PROPERTY_TV_TOP_MARGIN: 'GUD_DRM_PROPERTY_TV_TOP_MARGIN',
@@ -381,21 +396,25 @@ GUD_DRM_COMPRESSION_LZ4     = BIT(0)
 
 class gud_drm_usb_vendor_descriptor(ctypes.LittleEndianStructure):
     _fields_ = [
-        ('bLength', ctypes.c_uint8),
-        ('bDescriptorType', ctypes.c_uint8),
-        ('bVersion', ctypes.c_uint8),
-        ('bCompression', ctypes.c_uint8),
-        ('bMaxBufferSizeOrder', ctypes.c_uint8),
-        ('bmFlags', ctypes.c_uint32),
-        ('dwMinWidth', ctypes.c_uint32),
-        ('dwMaxWidth', ctypes.c_uint32),
-        ('dwMinHeight', ctypes.c_uint32),
-        ('dwMaxHeight', ctypes.c_uint32),
-        ('bNumFormats', ctypes.c_uint8),
-        ('bNumProperties', ctypes.c_uint8),
-        ('bNumConnectors', ctypes.c_uint8),
+        ('magic', ctypes.c_uint32),
+        ('version', ctypes.c_uint8),
+        ('flags', ctypes.c_uint32),
+        ('compression', ctypes.c_uint8),
+        ('max_buffer_size', ctypes.c_uint32),
+        ('min_width', ctypes.c_uint32),
+        ('max_width', ctypes.c_uint32),
+        ('min_height', ctypes.c_uint32),
+        ('max_height', ctypes.c_uint32),
+        ('num_formats', ctypes.c_uint8),
+        ('num_properties', ctypes.c_uint8),
+        ('num_connectors', ctypes.c_uint8),
     ]
     _pack_ = 1
+
+
+GUD_DRM_DISPLAY_MAGIC = 0x1d50614d
+GUD_DRM_DISPLAY_FLAG_STATUS_ON_SET = BIT(0)
+GUD_DRM_DISPLAY_FLAG_FULL_UPDATE   = BIT(1)
 
 
 class gud_drm_req_property(ctypes.LittleEndianStructure):
@@ -406,19 +425,48 @@ class gud_drm_req_property(ctypes.LittleEndianStructure):
     _pack_ = 1
 
 
+GUD_DRM_CONNECTOR_TYPE_PANEL        = 0
+GUD_DRM_CONNECTOR_TYPE_VGA          = 1
+GUD_DRM_CONNECTOR_TYPE_COMPOSITE    = 2
+GUD_DRM_CONNECTOR_TYPE_SVIDEO       = 3
+GUD_DRM_CONNECTOR_TYPE_COMPONENT    = 4
+GUD_DRM_CONNECTOR_TYPE_DVI          = 5
+GUD_DRM_CONNECTOR_TYPE_DISPLAYPORT  = 6
+GUD_DRM_CONNECTOR_TYPE_HDMI         = 7
+
+connector_type_to_name = {
+    GUD_DRM_CONNECTOR_TYPE_PANEL: 'Panel',
+    GUD_DRM_CONNECTOR_TYPE_VGA: 'VGA',
+    GUD_DRM_CONNECTOR_TYPE_COMPOSITE: 'Composite',
+    GUD_DRM_CONNECTOR_TYPE_SVIDEO: 'S-Video',
+    GUD_DRM_CONNECTOR_TYPE_COMPONENT: 'Component',
+    GUD_DRM_CONNECTOR_TYPE_DVI: 'DVI',
+    GUD_DRM_CONNECTOR_TYPE_DISPLAYPORT: 'DisplayPort',
+    GUD_DRM_CONNECTOR_TYPE_HDMI: 'HDMI',
+}
+
 GUD_DRM_CONNECTOR_FLAGS_POLL    = BIT(0)
 
 class gud_drm_req_get_connector(ctypes.LittleEndianStructure):
     _fields_ = [
         ('connector_type', ctypes.c_uint8),
-        ('bmFlags', ctypes.c_uint32),
+        ('flags', ctypes.c_uint32),
         ('num_properties', ctypes.c_uint8),
     ]
     _pack_ = 1
 
 
-GUD_DRM_CONNECTOR_STATUS_MASK       = 0xf # Only 2 bits are currently used for status
-GUD_DRM_CONNECTOR_STATUS_CHANGED    = BIT(7)
+GUD_DRM_CONNECTOR_STATUS_DISCONNECTED   = 0x00
+GUD_DRM_CONNECTOR_STATUS_CONNECTED      = 0x01
+GUD_DRM_CONNECTOR_STATUS_UNKNOWN        = 0x02
+GUD_DRM_CONNECTOR_STATUS_CONNECTED_MASK = 0x3
+GUD_DRM_CONNECTOR_STATUS_CHANGED        = BIT(7)
+
+connector_status_to_name = {
+    GUD_DRM_CONNECTOR_STATUS_DISCONNECTED: 'disconnected',
+    GUD_DRM_CONNECTOR_STATUS_CONNECTED: 'connected',
+    GUD_DRM_CONNECTOR_STATUS_UNKNOWN: 'unknown',
+}
 
 class gud_drm_req_get_connector_status(ctypes.LittleEndianStructure):
     _fields_ = [
@@ -436,15 +484,11 @@ class gud_drm_req_display_mode(ctypes.LittleEndianStructure):
         ('hsync_start', ctypes.c_uint16),
         ('hsync_end', ctypes.c_uint16),
         ('htotal', ctypes.c_uint16),
-        ('hskew', ctypes.c_uint16),
         ('vdisplay', ctypes.c_uint16),
         ('vsync_start', ctypes.c_uint16),
         ('vsync_end', ctypes.c_uint16),
         ('vtotal', ctypes.c_uint16),
-        ('vscan', ctypes.c_uint16),
-        ('vrefresh', ctypes.c_uint32),
         ('flags', ctypes.c_uint32),
-        ('type', ctypes.c_uint8),
     ]
     _pack_ = 1
 
@@ -466,7 +510,7 @@ class gud_drm_req_set_buffer(ctypes.LittleEndianStructure):
 class gud_drm_req_set_state(ctypes.LittleEndianStructure):
     _fields_ = [
         ('mode', gud_drm_req_display_mode),
-        ('format', ctypes.c_uint32),
+        ('format', ctypes.c_uint8),
         ('connector', ctypes.c_uint8),
         ('num_properties', ctypes.c_uint8),
         # struct gud_drm_req_property properties[];
@@ -474,28 +518,50 @@ class gud_drm_req_set_state(ctypes.LittleEndianStructure):
     _pack_ = 1
 
 
+GUD_DRM_PIXEL_FORMAT_R1             = 0x01
+GUD_DRM_PIXEL_FORMAT_RGB565         = 0x40
+GUD_DRM_PIXEL_FORMAT_XRGB8888       = 0x80
+GUD_DRM_PIXEL_FORMAT_ARGB8888       = 0x81
+
+pixel_format_to_name = {
+    GUD_DRM_PIXEL_FORMAT_R1: 'R1',
+    GUD_DRM_PIXEL_FORMAT_RGB565: 'RGB565',
+    GUD_DRM_PIXEL_FORMAT_XRGB8888: 'XRGB8888',
+    GUD_DRM_PIXEL_FORMAT_ARGB8888: 'ARGB8888',
+
+}
+
+
 ####################################################################################################
 
+class Flags:
+    def __init__(self):
+        self.GUD_DRM_DISPLAY_FLAG_STATUS_ON_SET = None
+
+    def set(self, flags):
+        self.GUD_DRM_DISPLAY_FLAG_STATUS_ON_SET = bool(flags & GUD_DRM_DISPLAY_FLAG_STATUS_ON_SET)
+
+
 class Transfer:
-    def __init__(self, urb):
+    def __init__(self, urb, flags):
         self.urb = urb
         self.request = urb.setup.bRequest
         self.index = urb.setup.wValue
         self.timestamp = urb.ts_start
         self.data = urb.data
         self.status_urb = None
-        # No status request issued on IN transfers
-        if urb.dirin:
-            self.status = urb.status
-        else:
+
+        if not urb.dirin and flags.GUD_DRM_DISPLAY_FLAG_STATUS_ON_SET:
             self.status = -errno.EINPROGRESS
+        else:
+            self.status = urb.status
 
     def add_status(self, urb):
-        if not urb.dirin or urb.setup.bRequest != 0:
+        if not urb.dirin or urb.setup.bRequest != GUD_DRM_USB_REQ_GET_STATUS:
             raise ValueError('Not a status urb:', urb)
         self.status_urb = urb
-        if not (int(urb.data[0]) & GUD_DRM_STATUS_PENDING):
-            self.status = - int(urb.data[1])
+        if urb.status == 0:
+            self.status = int(urb.data[0])
 
     def done(self):
         return self.status != -errno.EINPROGRESS
@@ -515,7 +581,7 @@ class Transfer:
             return ''
         elif len(self.data) == 1:
             return int(self.data[0])
-        elif self.request == USB_REQ_GET_DESCRIPTOR and len(self.data) == ctypes.sizeof(gud_drm_usb_vendor_descriptor):
+        elif self.request == GUD_DRM_USB_REQ_GET_DESCRIPTOR and len(self.data) == ctypes.sizeof(gud_drm_usb_vendor_descriptor):
             return gud_drm_usb_vendor_descriptor.from_buffer_copy(self.data)
         elif self.request in (GUD_DRM_USB_REQ_GET_PROPERTIES, GUD_DRM_USB_REQ_GET_CONNECTOR_PROPERTIES):
             num = len(self.data) // ctypes.sizeof(gud_drm_req_property)
@@ -548,25 +614,29 @@ class Transfer:
     def __str__(self):
         name = req_to_name.get(self.request, f'{self.request:02x}')
         s = f'{name}:'
-        if self.status == 0:
+        if self.status >= 0:
 
-            if self.request == USB_REQ_GET_DESCRIPTOR and len(self.data) == ctypes.sizeof(gud_drm_usb_vendor_descriptor):
+            if self.status > 0:
+                s += f' error={status_to_name.get(self.status, self.status)}'
+
+            if self.request == GUD_DRM_USB_REQ_GET_DESCRIPTOR and len(self.data) == ctypes.sizeof(gud_drm_usb_vendor_descriptor):
                 s += f'\n'
-                s += f'    version={self.value.bVersion}\n'
-                s += f'    compression=0x{self.value.bCompression:x}\n'
-                s += f'    MaxBufferSizeOrder={self.value.bMaxBufferSizeOrder}\n'
-                s += f'    bmFlags=0x{self.value.bmFlags:x}\n'
-                s += f'    MinWidth={self.value.dwMinWidth}\n'
-                s += f'    MaxWidth={self.value.dwMaxWidth}\n'
-                s += f'    MinHeight={self.value.dwMinHeight}\n'
-                s += f'    MaxHeight={self.value.dwMaxHeight}\n'
-                s += f'    NumFormats={self.value.bNumFormats}\n'
-                s += f'    NumProperties={self.value.bNumProperties}\n'
-                s += f'    NumConnectors={self.value.bNumConnectors}\n'
+                s += f'    version={self.value.version}\n'
+                s += f'    flags=0x{self.value.flags:x}\n'
+                s += f'    compression=0x{self.value.compression:x}\n'
+                s += f'    max_buffer_size={self.value.max_buffer_size}\n'
+                s += f'    min_width={self.value.min_width}\n'
+                s += f'    max_width={self.value.max_width}\n'
+                s += f'    min_height={self.value.min_height}\n'
+                s += f'    max_height={self.value.max_height}\n'
+                s += f'    num_formats={self.value.num_formats}\n'
+                s += f'    num_properties={self.value.num_properties}\n'
+                s += f'    num_connectors={self.value.num_connectors}\n'
                 s += '   '
 
             elif self.request == GUD_DRM_USB_REQ_GET_FORMATS:
-                s += f' {self.value}'
+                for fmt in self.value:
+                    s += f' {pixel_format_to_name.get(fmt, "??")}'
 
             elif self.request in (GUD_DRM_USB_REQ_GET_PROPERTIES, GUD_DRM_USB_REQ_GET_CONNECTOR_PROPERTIES):
                 s += f'\n'
@@ -575,17 +645,15 @@ class Transfer:
 
             elif self.request == GUD_DRM_USB_REQ_GET_CONNECTOR:
                 s += f' index={self.index}'
-                s += f' type={self.value.connector_type}'
-                s += f' flags={self.value.bmFlags:x}'
+                s += f' type={connector_type_to_name.get(self.value.connector_type, "Unknown")}'
+                s += f' flags={self.value.flags:x}'
                 s += f' num_properties={self.value.num_properties}'
 
             elif self.request == GUD_DRM_USB_REQ_GET_CONNECTOR_STATUS:
                 value = self.value
                 s += f' index={self.index}'
-                status = value.status & GUD_DRM_CONNECTOR_STATUS_MASK
-                sn = {1: 'connected', 2: 'disconnected', 3: 'unknown'}.get(status, None)
-                if sn is None:
-                    sn = f'ILLEGAL:{status}'
+                status = value.status & GUD_DRM_CONNECTOR_STATUS_CONNECTED_MASK
+                sn = connector_status_to_name.get(status, f'ILLEGAL:{status}')
                 s += f' status={sn}'
                 if value.status & GUD_DRM_CONNECTOR_STATUS_CHANGED:
                     s += ' (CHANGED)'
@@ -595,7 +663,7 @@ class Transfer:
             elif self.request == GUD_DRM_USB_REQ_GET_CONNECTOR_MODES:
                 s += f'\n'
                 for mode in self.value:
-                    s += f'    mode={mode.hdisplay}x{mode.vdisplay}@{mode.vrefresh}\n'
+                    s += f'    mode={mode.hdisplay}x{mode.vdisplay}\n'
                 s += '   '
 
             elif self.request == GUD_DRM_USB_REQ_GET_CONNECTOR_EDID:
@@ -603,9 +671,8 @@ class Transfer:
 
             elif self.request == GUD_DRM_USB_REQ_SET_MODE_CHECK:
                 mode = self.value.mode
-                s += f' mode={mode.hdisplay}x{mode.vdisplay}@{mode.vrefresh}'
-                formatname = bytes.fromhex(f'{self.value.format:x}').decode("ascii")[::-1]
-                s += f' format={formatname}'
+                s += f' mode={mode.hdisplay}x{mode.vdisplay}'
+                s += f' format={pixel_format_to_name.get(self.value.format, "??")}'
                 s += f' connector={self.value.connector}'
                 s += f' properties:\n'
                 if self.value.num_properties:
@@ -652,7 +719,10 @@ class FlushStat:
         self.next = None
 
         self.ctrl_start = flush.ctrl.timestamp
-        self.ctrl_end = flush.ctrl.status_urb.ts_end
+        if flush.ctrl.status_urb:
+            self.ctrl_end = flush.ctrl.status_urb.ts_end
+        else:
+            self.ctrl_end = flush.ctrl.urb.ts_end
         self.bulk_start = flush.bulk.ts_start
         self.bulk_end = flush.bulk.ts_end
 
@@ -847,17 +917,19 @@ def monitor(busnum, devnum=None, debug=False):
     control_flush = None
     flush = None
 
+    flags = Flags()
     stats = Stats()
 
     for urb in USBmon(busnum, bufsize, debug > 1, drop_cb):
 
         # Look for the display descriptor if DISCOVER
         if (devnum is None and urb.type == PIPE_CONTROL and
-            urb.setup.bRequest == USB_REQ_GET_DESCRIPTOR and
+            urb.setup.bRequest == GUD_DRM_USB_REQ_GET_DESCRIPTOR and
             urb.setup.bRequestType == (USB_DIR_IN | USB_TYPE_VENDOR | USB_RECIP_INTERFACE) and
-            urb.setup.wValue == (GUD_DRM_USB_DT_INTERFACE << 8) and
-            urb.len == ctypes.sizeof(gud_drm_usb_vendor_descriptor)
+            urb.setup.wValue == 0 and urb.len == ctypes.sizeof(gud_drm_usb_vendor_descriptor)
         ):
+            desc = gud_drm_usb_vendor_descriptor.from_buffer_copy(urb.data)
+            flags.set(desc.flags)
             devnum = urb.devnum
             print(f'\nMonitoring: {busnum:03d}:{devnum:03d}\n')
 
@@ -868,14 +940,18 @@ def monitor(busnum, devnum=None, debug=False):
             continue
 
         if urb.type == PIPE_CONTROL:
-            if urb.setup.bRequest == 0:
+            if urb.setup.bRequest == GUD_DRM_USB_REQ_GET_STATUS:
                 if transfer:
                     transfer.add_status(urb)
                 else:
-                    print('Dangling status urb:', urb)
+                    if flags.GUD_DRM_DISPLAY_FLAG_STATUS_ON_SET is None:
+                        flags.GUD_DRM_DISPLAY_FLAG_STATUS_ON_SET = True
+                        print('Detected: GUD_DRM_DISPLAY_FLAG_STATUS_ON_SET')
+                    else:
+                        print('Dangling status urb:', urb)
                     continue
             else:
-                transfer = Transfer(urb)
+                transfer = Transfer(urb, flags)
 
             if transfer.done():
                 if transfer.request == GUD_DRM_USB_REQ_SET_BUFFER:
