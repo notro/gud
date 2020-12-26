@@ -93,7 +93,7 @@ class Gadget:
                     path.mkdir()
                 self.process(path, value)
             elif path.exists():
-                print(path, ':=', value)
+                print(path, ':=', repr(value))
                 if isinstance(value, int):
                     value = str(value)
                 if isinstance(value, str):
@@ -270,7 +270,7 @@ config = {
     'configs': {
         'c.1': {
             'bmAttributes': None,
-            'gud_drm.0': 'link',
+            'gud.0': 'link',
             #'hid.usb0': 'link',
             'MaxPower': None,
             'strings': {
@@ -280,7 +280,7 @@ config = {
     },
 
     'functions': {
-        'gud_drm.0': {
+        'gud.0': {
             'drm_dev': drm_dev(),
             'backlight_dev': backlight_dev(),
         },
