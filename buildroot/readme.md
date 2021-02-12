@@ -19,7 +19,7 @@ build-raspberrypi0/images/sdcard.img
 Release build:
 
 ```
-$ GUD_VERSION=0.04 ../gud/buildroot/build.sh pi0 release 2>&1 | tee build0.log
+$ GUD_VERSION=0.05 ../gud/buildroot/build.sh pi0 release 2>&1 | tee build0.log
 
 $ ls *.{img,zip}
 gud-raspberrypi0-0.04.img

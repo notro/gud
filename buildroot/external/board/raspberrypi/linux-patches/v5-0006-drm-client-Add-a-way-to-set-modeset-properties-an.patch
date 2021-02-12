@@ -1,7 +1,7 @@
-From 1f0cde31059a6496d00036b4b5472a8782421086 Mon Sep 17 00:00:00 2001
+From 2057a5993c1173d16a8a4a7b0365d3ae522746b2 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
 Date: Tue, 7 Apr 2020 19:30:22 +0200
-Subject: [PATCH v4 6/9] drm/client: Add a way to set modeset, properties and
+Subject: [PATCH v5 06/10] drm/client: Add a way to set modeset, properties and
  rotation
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

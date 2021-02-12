@@ -1,7 +1,8 @@
-From 6d50dc4dce36650615a5085a7a2e8ed25c6bb27a Mon Sep 17 00:00:00 2001
+From 3ecf17d7e2393c30fcacfe34df213a193cfd3ce2 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
 Date: Tue, 28 Apr 2020 17:38:02 +0200
-Subject: [PATCH v4 8/9] usb: gadget: function: Add Generic USB Display support
+Subject: [PATCH v5 08/10] usb: gadget: function: Add Generic USB Display
+ support
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -23,8 +24,8 @@ Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
  MAINTAINERS                                   |   2 +
  drivers/usb/gadget/Kconfig                    |  12 +
  drivers/usb/gadget/function/Makefile          |   2 +
- drivers/usb/gadget/function/f_gud.c           | 737 ++++++++++++++++++
- 5 files changed, 763 insertions(+)
+ drivers/usb/gadget/function/f_gud.c           | 742 ++++++++++++++++++
+ 5 files changed, 768 insertions(+)
  create mode 100644 Documentation/ABI/testing/configfs-usb-gadget-gud
  create mode 100644 drivers/usb/gadget/function/f_gud.c
 
@@ -59,7 +60,7 @@ index e7f71ac55f08..abc5fd5d4aab 100644
  
  DRM DRIVER FOR GRAIN MEDIA GM12U320 PROJECTORS
 diff --git a/drivers/usb/gadget/Kconfig b/drivers/usb/gadget/Kconfig
-index 2d152571a7de..822b2888aa02 100644
+index 2d152571a7de..e0dfa79cc84c 100644
 --- a/drivers/usb/gadget/Kconfig
 +++ b/drivers/usb/gadget/Kconfig
 @@ -216,6 +216,9 @@ config USB_F_PRINTER
@@ -77,13 +78,13 @@ index 2d152571a7de..822b2888aa02 100644
  	  UAS utilizes the USB 3.0 feature called streams support.
  
 +config USB_CONFIGFS_F_GUD
-+	bool "Generic USB Display Gadget function"
++	bool "GUD USB Display Gadget function"
 +	depends on USB_CONFIGFS
 +	depends on DRM
 +	select DRM_GUD_GADGET
 +	select USB_F_GUD
 +	help
-+	  This presents a DRM display device as a Generic USB Display.
++	  This presents a DRM display device as a GUD USB Display.
 +
  source "drivers/usb/gadget/legacy/Kconfig"
  
@@ -100,10 +101,10 @@ index 5d3a6cf02218..c5377f44cb4b 100644
 +obj-$(CONFIG_USB_F_GUD)	+= usb_f_gud.o
 diff --git a/drivers/usb/gadget/function/f_gud.c b/drivers/usb/gadget/function/f_gud.c
 new file mode 100644
-index 000000000000..1e5cababf952
+index 000000000000..af7f17f0af49
 --- /dev/null
 +++ b/drivers/usb/gadget/function/f_gud.c
-@@ -0,0 +1,737 @@
+@@ -0,0 +1,742 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Copyright (C) 2020 Noralf Trønnes
@@ -221,7 +222,7 @@ index 000000000000..1e5cababf952
 +};
 +
 +static struct usb_string f_gud_string_defs[] = {
-+	[0].s = "Generic USB Display",
++	[0].s = "GUD USB Display",
 +	{  } /* end of list */
 +};
 +
@@ -257,7 +258,7 @@ index 000000000000..1e5cababf952
 +	if (len != sizeof(struct gud_set_buffer_req))
 +		return -EINVAL;
 +
-+	ret = gud_gadget_set_buffer(fgd->gdg, buf);
++	ret = gud_gadget_req_set_buffer(fgd->gdg, buf);
 +	if (ret < 0)
 +		return ret;
 +
@@ -360,7 +361,7 @@ index 000000000000..1e5cababf952
 +		if (request == GUD_REQ_SET_BUFFER)
 +			ret = f_gud_ctrl_req_set_buffer(fgd, buf, length);
 +		else
-+			ret = gud_gadget_ctrl_set(gdg, request, value, buf, length);
++			ret = gud_gadget_req_set(gdg, request, value, buf, length);
 +
 +		spin_lock_irqsave(&fgd->lock, flags);
 +		fgd->ctrl_pending = false;
@@ -439,8 +440,8 @@ index 000000000000..1e5cababf952
 +		if (length > USB_COMP_EP0_BUFSIZ) {
 +			ret = -EOVERFLOW;
 +		} else {
-+			ret = gud_gadget_ctrl_get(fgd->gdg, ctrl->bRequest, value,
-+						  cdev->req->buf, length);
++			ret = gud_gadget_req_get(fgd->gdg, ctrl->bRequest, value,
++						 cdev->req->buf, length);
 +			if (ret > 0) {
 +				cdev->req->length = ret;
 +				ret = usb_ep_queue(cdev->gadget->ep0, cdev->req, GFP_ATOMIC);
@@ -454,8 +455,13 @@ index 000000000000..1e5cababf952
 +			fgd->request = ctrl->bRequest;
 +			fgd->value = value;
 +			fgd->ctrl_req->length = length;
-+			// FIXME move outside spinlock, ->complete() can run inline here
++			/* ->complete() can run inline and takes the lock. Preserve errno */
++			fgd->errno = 0;
++			spin_unlock_irqrestore(&fgd->lock, flags);
 +			ret = usb_ep_queue(cdev->gadget->ep0, fgd->ctrl_req, GFP_ATOMIC);
++			spin_lock_irqsave(&fgd->lock, flags);
++			if (!ret)
++				ret = fgd->errno;
 +		}
 +	}
 +

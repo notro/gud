@@ -1,7 +1,7 @@
-From 120ebc2ddf5e262cc72c7f8600e0eaff332264c9 Mon Sep 17 00:00:00 2001
+From ccc2f9898e13060051023aca57913fcfaf1fbeff Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
 Date: Wed, 9 Dec 2020 19:08:18 +0100
-Subject: [PATCH v4 2/9] drm/probe-helper: Check epoch counter in
+Subject: [PATCH v5 02/10] drm/probe-helper: Check epoch counter in
  output_poll_execute()
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -13,6 +13,11 @@ commit 5186421cbfe2 ("drm: Introduce epoch counter to drm_connector").
 Do the same for output_poll_execute() so it can detect other changes
 beside connection status value changes.
 
+v2:
+- Add Fixes tag (Daniel)
+
+Fixes: 5186421cbfe2 ("drm: Introduce epoch counter to drm_connector")
+Reviewed-by: Daniel Vetter <daniel.vetter@ffwll.ch>
 Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
 ---
  drivers/gpu/drm/drm_probe_helper.c | 7 ++++++-

@@ -1,7 +1,7 @@
-From e766288573e4c9505a4fd0358ce77d60226f2ab3 Mon Sep 17 00:00:00 2001
+From 4a8246953d49c8f1c9914e54a3d94fe2de697928 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
 Date: Tue, 28 Apr 2020 16:13:02 +0200
-Subject: [PATCH v4 3/9] drm: Add Generic USB Display driver
+Subject: [PATCH v5 03/10] drm: Add Generic USB Display driver
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -89,8 +89,19 @@ v4:
 - Set epoch counter to signal connector status change
 - gud_drm_driver can be const now
 
+v5:
+- GUD_DRM_FORMAT_R1: Use non-human ascii values (Daniel)
+- Change name to: GUD USB Display (Thomas, Simon)
+- Change one __u32 -> __le32 in protocol header
+- Always log fb flush errors, unless the previous one failed
+- Run backlight update in a worker to avoid upsetting lockdep (Daniel)
+- Drop backlight_ops.get_brightness, there's no readback from the device
+  so it doesn't really add anything.
+- Set dma mask, needed by dma-buf importers
+
 Cc: Peter Stuge <peter@stuge.se>
-Cc: Lubomir Rintel <lkundrak@v3.sk>
+Tested-by: Lubomir Rintel <lkundrak@v3.sk>
+Acked-by: Daniel Vetter <daniel.vetter@ffwll.ch>
 Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
 ---
  MAINTAINERS                         |   8 +
@@ -98,12 +109,12 @@ Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
  drivers/gpu/drm/Makefile            |   1 +
  drivers/gpu/drm/gud/Kconfig         |  14 +
  drivers/gpu/drm/gud/Makefile        |   4 +
- drivers/gpu/drm/gud/gud_connector.c | 722 ++++++++++++++++++++++++++++
- drivers/gpu/drm/gud/gud_drv.c       | 620 ++++++++++++++++++++++++
- drivers/gpu/drm/gud/gud_internal.h  | 148 ++++++
- drivers/gpu/drm/gud/gud_pipe.c      | 472 ++++++++++++++++++
+ drivers/gpu/drm/gud/gud_connector.c | 737 ++++++++++++++++++++++++++++
+ drivers/gpu/drm/gud/gud_drv.c       | 625 +++++++++++++++++++++++
+ drivers/gpu/drm/gud/gud_internal.h  | 149 ++++++
+ drivers/gpu/drm/gud/gud_pipe.c      | 475 ++++++++++++++++++
  include/drm/gud.h                   | 356 ++++++++++++++
- 10 files changed, 2347 insertions(+)
+ 10 files changed, 2371 insertions(+)
  create mode 100644 drivers/gpu/drm/gud/Kconfig
  create mode 100644 drivers/gpu/drm/gud/Makefile
  create mode 100644 drivers/gpu/drm/gud/gud_connector.c
@@ -155,21 +166,21 @@ index 81569009f884..78dd8e12525d 100644
 +obj-y			+= gud/
 diff --git a/drivers/gpu/drm/gud/Kconfig b/drivers/gpu/drm/gud/Kconfig
 new file mode 100644
-index 000000000000..d832cd63687c
+index 000000000000..1c8601bf4d91
 --- /dev/null
 +++ b/drivers/gpu/drm/gud/Kconfig
 @@ -0,0 +1,14 @@
 +# SPDX-License-Identifier: GPL-2.0
 +
 +config DRM_GUD
-+	tristate "Generic USB Display"
++	tristate "GUD USB Display"
 +	depends on DRM && USB
 +	select LZ4_COMPRESS
 +	select DRM_KMS_HELPER
 +	select DRM_GEM_SHMEM_HELPER
 +	select BACKLIGHT_CLASS_DEVICE
 +	help
-+	  This is a DRM display driver for Generic USB Displays or display
++	  This is a DRM display driver for GUD USB Displays or display
 +	  adapters.
 +
 +	  If M is selected the module will be called gud.
@@ -185,16 +196,17 @@ index 000000000000..d2bb53a65de6
 +obj-$(CONFIG_DRM_GUD)		+= gud.o
 diff --git a/drivers/gpu/drm/gud/gud_connector.c b/drivers/gpu/drm/gud/gud_connector.c
 new file mode 100644
-index 000000000000..a4b9bbf48e19
+index 000000000000..ae07e5d96174
 --- /dev/null
 +++ b/drivers/gpu/drm/gud/gud_connector.c
-@@ -0,0 +1,722 @@
+@@ -0,0 +1,737 @@
 +// SPDX-License-Identifier: MIT
 +/*
 + * Copyright 2020 Noralf Trønnes
 + */
 +
 +#include <linux/backlight.h>
++#include <linux/workqueue.h>
 +
 +#include <drm/drm_atomic.h>
 +#include <drm/drm_atomic_state_helper.h>
@@ -214,6 +226,7 @@ index 000000000000..a4b9bbf48e19
 +	struct drm_connector connector;
 +	struct drm_encoder encoder;
 +	struct backlight_device *backlight;
++	struct work_struct backlight_work;
 +
 +	/* Supported properties */
 +	u16 *properties;
@@ -237,18 +250,29 @@ index 000000000000..a4b9bbf48e19
 +	return container_of(connector, struct gud_connector, connector);
 +}
 +
-+static int gud_connector_backlight_update_status(struct backlight_device *bd)
++/*
++ * Use a worker to avoid taking kms locks inside the backlight lock.
++ * Other display drivers use backlight within their kms locks.
++ * This avoids inconsistent locking rules, which would upset lockdep.
++ */
++static void gud_connector_backlight_update_status_work(struct work_struct *work)
 +{
-+	struct drm_connector *connector = bl_get_data(bd);
++	struct gud_connector *gconn = container_of(work, struct gud_connector, backlight_work);
++	struct drm_connector *connector = &gconn->connector;
 +	struct drm_connector_state *connector_state;
-+	struct drm_device *dev = connector->dev;
++	struct drm_device *drm = connector->dev;
 +	struct drm_modeset_acquire_ctx ctx;
 +	struct drm_atomic_state *state;
-+	int ret;
++	int idx, ret;
 +
-+	state = drm_atomic_state_alloc(dev);
-+	if (!state)
-+		return -ENOMEM;
++	if (!drm_dev_enter(drm, &idx))
++		return;
++
++	state = drm_atomic_state_alloc(drm);
++	if (!state) {
++		ret = -ENOMEM;
++		goto exit;
++	}
 +
 +	drm_modeset_acquire_init(&ctx, 0);
 +	state->acquire_ctx = &ctx;
@@ -260,7 +284,7 @@ index 000000000000..a4b9bbf48e19
 +	}
 +
 +	/* Reuse tv.brightness to avoid having to subclass */
-+	connector_state->tv.brightness = bd->props.brightness;
++	connector_state->tv.brightness = gconn->backlight->props.brightness;
 +
 +	ret = drm_atomic_commit(state);
 +out:
@@ -274,25 +298,25 @@ index 000000000000..a4b9bbf48e19
 +
 +	drm_modeset_drop_locks(&ctx);
 +	drm_modeset_acquire_fini(&ctx);
++exit:
++	drm_dev_exit(idx);
 +
-+	return ret;
++	if (ret)
++		dev_err(drm->dev, "Failed to update backlight, err=%d\n", ret);
 +}
 +
-+static int gud_connector_backlight_get_brightness(struct backlight_device *bd)
++static int gud_connector_backlight_update_status(struct backlight_device *bd)
 +{
 +	struct drm_connector *connector = bl_get_data(bd);
-+	struct drm_device *dev = connector->dev;
-+	int brightness;
++	struct gud_connector *gconn = to_gud_connector(connector);
 +
-+	drm_modeset_lock(&dev->mode_config.connection_mutex, NULL);
-+	brightness = connector->state->tv.brightness;
-+	drm_modeset_unlock(&dev->mode_config.connection_mutex);
++	/* The USB timeout is 5 seconds so use system_long_wq for worst case scenario */
++	queue_work(system_long_wq, &gconn->backlight_work);
 +
-+	return brightness;
++	return 0;
 +}
 +
 +static const struct backlight_ops gud_connector_backlight_ops = {
-+	.get_brightness = gud_connector_backlight_get_brightness,
 +	.update_status	= gud_connector_backlight_update_status,
 +};
 +
@@ -542,6 +566,7 @@ index 000000000000..a4b9bbf48e19
 +	struct gud_connector *gconn = to_gud_connector(connector);
 +
 +	backlight_device_unregister(gconn->backlight);
++	cancel_work_sync(&gconn->backlight_work);
 +}
 +
 +static void gud_connector_destroy(struct drm_connector *connector)
@@ -834,6 +859,7 @@ index 000000000000..a4b9bbf48e19
 +	if (!gconn)
 +		return -ENOMEM;
 +
++	INIT_WORK(&gconn->backlight_work, gud_connector_backlight_update_status_work);
 +	gconn->initial_brightness = -ENODEV;
 +	flags = le32_to_cpu(desc.flags);
 +	connector = &gconn->connector;
@@ -913,16 +939,17 @@ index 000000000000..a4b9bbf48e19
 +}
 diff --git a/drivers/gpu/drm/gud/gud_drv.c b/drivers/gpu/drm/gud/gud_drv.c
 new file mode 100644
-index 000000000000..6c5e9eeb8cdc
+index 000000000000..4477e31e37b7
 --- /dev/null
 +++ b/drivers/gpu/drm/gud/gud_drv.c
-@@ -0,0 +1,620 @@
+@@ -0,0 +1,625 @@
 +// SPDX-License-Identifier: MIT
 +/*
 + * Copyright 2020 Noralf Trønnes
 + */
 +
 +#include <linux/dma-buf.h>
++#include <linux/dma-mapping.h>
 +#include <linux/lz4.h>
 +#include <linux/module.h>
 +#include <linux/platform_device.h>
@@ -1327,6 +1354,10 @@ index 000000000000..6c5e9eeb8cdc
 +		}
 +	}
 +
++	ret = dma_coerce_mask_and_coherent(dev, DMA_BIT_MASK(64));
++	if (ret)
++		dev_warn(dev, "Failed to set DMA mask\n");
++
 +	gdrm = devm_drm_dev_alloc(dev, &gud_drm_driver, struct gud_device, drm);
 +	if (IS_ERR(gdrm))
 +		return PTR_ERR(gdrm);
@@ -1539,10 +1570,10 @@ index 000000000000..6c5e9eeb8cdc
 +MODULE_LICENSE("Dual MIT/GPL");
 diff --git a/drivers/gpu/drm/gud/gud_internal.h b/drivers/gpu/drm/gud/gud_internal.h
 new file mode 100644
-index 000000000000..46e7d7ed2c69
+index 000000000000..45cb2b6d5bd3
 --- /dev/null
 +++ b/drivers/gpu/drm/gud/gud_internal.h
-@@ -0,0 +1,148 @@
+@@ -0,0 +1,149 @@
 +/* SPDX-License-Identifier: MIT */
 +
 +#ifndef __LINUX_GUD_INTERNAL_H
@@ -1614,7 +1645,8 @@ index 000000000000..46e7d7ed2c69
 +				  struct gud_property_req *properties);
 +int gud_connector_create(struct gud_device *gdrm, unsigned int index);
 +
-+#define GUD_DRM_FORMAT_R1	fourcc_code('R', '1', ' ', ' ')
++/* Driver internal fourcc for 1-bit monochrome */
++#define GUD_DRM_FORMAT_R1	0x00000122
 +
 +static inline u8 gud_from_fourcc(u32 fourcc)
 +{
@@ -1693,10 +1725,10 @@ index 000000000000..46e7d7ed2c69
 +#endif
 diff --git a/drivers/gpu/drm/gud/gud_pipe.c b/drivers/gpu/drm/gud/gud_pipe.c
 new file mode 100644
-index 000000000000..1eef930bcf9b
+index 000000000000..478b88e69ad3
 --- /dev/null
 +++ b/drivers/gpu/drm/gud/gud_pipe.c
-@@ -0,0 +1,472 @@
+@@ -0,0 +1,475 @@
 +// SPDX-License-Identifier: MIT
 +/*
 + * Copyright 2020 Noralf Trønnes
@@ -1987,9 +2019,12 @@ index 000000000000..1eef930bcf9b
 +		if (ret) {
 +			if (ret != -ENODEV && ret != -ECONNRESET &&
 +			    ret != -ESHUTDOWN && ret != -EPROTO) {
++				bool prev_flush_failed = gdrm->prev_flush_failed;
++
 +				gud_retry_failed_flush(gdrm, fb, &damage);
-+				dev_err_once(fb->dev->dev,
-+					     "Failed to flush framebuffer: error=%d\n", ret);
++				if (!prev_flush_failed)
++					dev_err_ratelimited(fb->dev->dev,
++							    "Failed to flush framebuffer: error=%d\n", ret);
 +			}
 +			break;
 +		}
@@ -2171,7 +2206,7 @@ index 000000000000..1eef930bcf9b
 +}
 diff --git a/include/drm/gud.h b/include/drm/gud.h
 new file mode 100644
-index 000000000000..ebf19f50f780
+index 000000000000..7200296f46b3
 --- /dev/null
 +++ b/include/drm/gud.h
 @@ -0,0 +1,356 @@
@@ -2217,7 +2252,7 @@ index 000000000000..ebf19f50f780
 + * and min_height == max_height.
 + */
 +struct gud_display_descriptor_req {
-+	__u32 magic;
++	__le32 magic;
 +#define GUD_DISPLAY_MAGIC			0x1d50614d
 +	__u8 version;
 +	__le32 flags;
