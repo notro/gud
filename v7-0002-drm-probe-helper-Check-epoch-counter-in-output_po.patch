@@ -1,7 +1,7 @@
 From ccc2f9898e13060051023aca57913fcfaf1fbeff Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
 Date: Wed, 9 Dec 2020 19:08:18 +0100
-Subject: [PATCH v5 02/10] drm/probe-helper: Check epoch counter in
+Subject: [PATCH v7 02/11] drm/probe-helper: Check epoch counter in
  output_poll_execute()
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

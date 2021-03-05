@@ -1,7 +1,7 @@
-From 0e0a130041f85b9213eb047cb8bcb67c755aa538 Mon Sep 17 00:00:00 2001
+From 400775b1899f6dbe8c247c8ed82a77242b4e5d74 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
 Date: Tue, 17 Dec 2019 22:57:54 +0100
-Subject: [PATCH v5 04/10] drm/client: Add drm_client_init_from_id()
+Subject: [PATCH v7 04/11] drm/client: Add drm_client_init_from_id()
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit

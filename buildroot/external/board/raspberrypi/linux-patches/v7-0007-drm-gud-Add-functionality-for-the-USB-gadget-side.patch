@@ -1,7 +1,7 @@
-From b4aab5339a9f9528ec183f90178648f3b4d0efc2 Mon Sep 17 00:00:00 2001
+From e2590c8f0b3bd6898e5c6076dbf51e76fc5b9f1b Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
 Date: Tue, 28 Apr 2020 17:34:02 +0200
-Subject: [PATCH v5 07/10] drm/gud: Add functionality for the USB gadget side
+Subject: [PATCH v7 07/11] drm/gud: Add functionality for the USB gadget side
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -18,9 +18,9 @@ Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
 ---
  drivers/gpu/drm/gud/Kconfig      |    6 +
  drivers/gpu/drm/gud/Makefile     |    1 +
- drivers/gpu/drm/gud/gud_gadget.c | 1317 ++++++++++++++++++++++++++++++
+ drivers/gpu/drm/gud/gud_gadget.c | 1329 ++++++++++++++++++++++++++++++
  include/drm/gud.h                |   11 +
- 4 files changed, 1335 insertions(+)
+ 4 files changed, 1347 insertions(+)
  create mode 100644 drivers/gpu/drm/gud/gud_gadget.c
 
 diff --git a/drivers/gpu/drm/gud/Kconfig b/drivers/gpu/drm/gud/Kconfig
@@ -38,20 +38,20 @@ index 1c8601bf4d91..d63e93683daa 100644
 +	select LZ4_DECOMPRESS
 +	select BACKLIGHT_CLASS_DEVICE
 diff --git a/drivers/gpu/drm/gud/Makefile b/drivers/gpu/drm/gud/Makefile
-index d2bb53a65de6..b92ce84ce9b9 100644
+index 68a1c622cf33..685003e79c93 100644
 --- a/drivers/gpu/drm/gud/Makefile
 +++ b/drivers/gpu/drm/gud/Makefile
 @@ -2,3 +2,4 @@
  
- gud-objs			:= gud_drv.o gud_pipe.o gud_connector.o
+ gud-y				:= gud_drv.o gud_pipe.o gud_connector.o
  obj-$(CONFIG_DRM_GUD)		+= gud.o
 +obj-$(CONFIG_DRM_GUD_GADGET)	+= gud_gadget.o
 diff --git a/drivers/gpu/drm/gud/gud_gadget.c b/drivers/gpu/drm/gud/gud_gadget.c
 new file mode 100644
-index 000000000000..6a7f64d2de22
+index 000000000000..3b6259d06834
 --- /dev/null
 +++ b/drivers/gpu/drm/gud/gud_gadget.c
-@@ -0,0 +1,1317 @@
+@@ -0,0 +1,1329 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Copyright 2020 Noralf Trønnes
@@ -298,17 +298,19 @@ index 000000000000..6a7f64d2de22
 +	struct drm_client_dev *client = &gdg->client;
 +	struct drm_client_buffer *buffer;
 +	struct drm_connector *connector;
++	unsigned int i, num_properties;
 +	struct drm_display_mode mode;
-+	unsigned int i;
 +	void *vaddr;
 +	u32 format;
 +	int ret;
 +
-+	if (index || size < sizeof(struct gud_state_req))
++	if (index || size < sizeof(*req))
 +		return -EPROTO;
 +
-+	if (size != struct_size(req, properties, req->num_properties))
++	if ((size - sizeof(*req)) % sizeof(*req->properties))
 +		return -EPROTO;
++
++	num_properties = (size - sizeof(*req)) / sizeof(*req->properties);
 +
 +	memset(&mode, 0, sizeof(mode));
 +	gud_to_display_mode(&mode, &req->mode);
@@ -353,7 +355,7 @@ index 000000000000..6a7f64d2de22
 +	if (ret)
 +		return ret;
 +
-+	for (i = 0; i < req->num_properties; i++) {
++	for (i = 0; i < num_properties; i++) {
 +		u16 prop = le16_to_cpu(req->properties[i].prop);
 +		u64 val = le64_to_cpu(req->properties[i].val);
 +
@@ -623,9 +625,6 @@ index 000000000000..6a7f64d2de22
 +	desc.max_width = cpu_to_le32(drm->mode_config.max_width);
 +	desc.min_height = cpu_to_le32(drm->mode_config.min_height);
 +	desc.max_height = cpu_to_le32(drm->mode_config.max_height);
-+	desc.num_formats = gdg->format_count;
-+	desc.num_properties = gdg->num_properties;
-+	desc.num_connectors = gdg->connector_count;
 +
 +	size = min(size, sizeof(desc));
 +	memcpy(data, &desc, size);
@@ -636,9 +635,10 @@ index 000000000000..6a7f64d2de22
 +static int gud_gadget_req_get_formats(struct gud_gadget *gdg, unsigned int index,
 +				      void *data, size_t size)
 +{
-+	if (index || size != gdg->format_count)
++	if (index || !size)
 +		return -EPROTO;
 +
++	size = min(size, gdg->format_count);
 +	memcpy(data, gdg->formats, size);
 +
 +	return size;
@@ -647,25 +647,21 @@ index 000000000000..6a7f64d2de22
 +static int gud_gadget_req_get_properties(struct gud_gadget *gdg, unsigned int index,
 +					 void *data, size_t size)
 +{
-+	if (index || size != gdg->num_properties * sizeof(*gdg->properties))
++	size = rounddown(size, sizeof(*gdg->properties));
++	if (index || !size)
 +		return -EPROTO;
 +
++	size = min(size, gdg->num_properties * sizeof(*gdg->properties));
 +	memcpy(data, gdg->properties, size);
 +
 +	return size;
 +}
 +
-+static int gud_gadget_req_get_connector(struct gud_gadget *gdg, unsigned int index,
-+					struct gud_connector_descriptor_req *desc, size_t size)
++static void gud_gadget_req_get_connector(struct gud_gadget *gdg, unsigned int index,
++					 struct gud_connector_descriptor_req *desc)
 +{
 +	struct gud_gadget_connector *gconn;
 +	u32 flags;
-+
-+	if (index >= gdg->connector_count)
-+		return -EINVAL;
-+
-+	if (size != sizeof(*desc))
-+		return -EPROTO;
 +
 +	memset(desc, 0, sizeof(*desc));
 +
@@ -710,9 +706,23 @@ index 000000000000..6a7f64d2de22
 +	if (gconn->connector->doublescan_allowed)
 +		flags |= GUD_CONNECTOR_FLAGS_DOUBLESCAN;
 +	desc->flags = cpu_to_le32(flags);
-+	desc->num_properties = gconn->num_properties;
++}
 +
-+	return size;
++static int gud_gadget_req_get_connectors(struct gud_gadget *gdg, unsigned int index,
++					 struct gud_connector_descriptor_req *descs, size_t size)
++{
++	unsigned int i, num_connectors;
++
++	size = rounddown(size, sizeof(*descs));
++	if (index || !size)
++		return -EPROTO;
++
++	num_connectors = min(size / sizeof(*descs), gdg->connector_count);
++
++	for (i = 0; i < num_connectors; i++)
++		gud_gadget_req_get_connector(gdg, i, &descs[i]);
++
++	return num_connectors * sizeof(*descs);
 +}
 +
 +static struct gud_gadget_connector *
@@ -729,13 +739,15 @@ index 000000000000..6a7f64d2de22
 +{
 +	struct gud_gadget_connector *gconn;
 +
++	size = rounddown(size, sizeof(*gconn->properties));
++	if (!size)
++		return -EPROTO;
++
 +	gconn = gud_gadget_get_gconn(gdg, index);
 +	if (!gconn)
 +		return -EINVAL;
 +
-+	if (size != gconn->num_properties * sizeof(*gconn->properties))
-+		return -EPROTO;
-+
++	size = min(size, gconn->num_properties * sizeof(*gconn->properties));
 +	memcpy(data, gconn->properties, size);
 +
 +	return size;
@@ -746,20 +758,22 @@ index 000000000000..6a7f64d2de22
 +{
 +	struct gud_gadget_connector *gconn;
 +
++	size = rounddown(size, GUD_CONNECTOR_TV_MODE_NAME_LEN);
++	if (!size)
++		return -EPROTO;
++
 +	gconn = gud_gadget_get_gconn(gdg, index);
 +	if (!gconn)
 +		return -EINVAL;
 +
-+	if (size != gconn->num_tv_mode_enum_names * GUD_CONNECTOR_TV_MODE_NAME_LEN)
-+		return -EPROTO;
-+
++	size = min(size, gconn->num_tv_mode_enum_names * GUD_CONNECTOR_TV_MODE_NAME_LEN);
 +	memcpy(data, gconn->tv_mode_enum_names, size);
 +
 +	return size;
 +}
 +
 +static int gud_gadget_req_get_connector_status(struct gud_gadget *gdg, unsigned int index,
-+					       struct gud_connector_status_req *status, size_t size)
++					       u8 *status, size_t size)
 +{
 +	struct gud_gadget_connector *gconn;
 +	unsigned long flags;
@@ -775,24 +789,21 @@ index 000000000000..6a7f64d2de22
 +
 +	switch (gconn->status) {
 +	case connector_status_disconnected:
-+		status->status = GUD_CONNECTOR_STATUS_DISCONNECTED;
++		*status = GUD_CONNECTOR_STATUS_DISCONNECTED;
 +		break;
 +	case connector_status_connected:
-+		status->status = GUD_CONNECTOR_STATUS_CONNECTED;
++		*status = GUD_CONNECTOR_STATUS_CONNECTED;
 +		break;
 +	default:
-+		status->status = GUD_CONNECTOR_STATUS_UNKNOWN;
++		*status = GUD_CONNECTOR_STATUS_UNKNOWN;
 +		break;
 +
 +	};
 +
 +	if (gconn->changed) {
-+		status->status |= GUD_CONNECTOR_STATUS_CHANGED;
++		*status |= GUD_CONNECTOR_STATUS_CHANGED;
 +		gconn->changed = false;
 +	}
-+
-+	status->num_modes = cpu_to_le16(gconn->num_modes);
-+	status->edid_len = cpu_to_le16(gconn->edid_len);
 +
 +	spin_unlock_irqrestore(&gconn->lock, flags);
 +
@@ -804,20 +815,21 @@ index 000000000000..6a7f64d2de22
 +{
 +	struct gud_gadget_connector *gconn;
 +	unsigned long flags;
-+	int ret = size;
++
++	size = rounddown(size, sizeof(*gconn->modes));
++	if (!size)
++		return -EPROTO;
 +
 +	gconn = gud_gadget_get_gconn(gdg, index);
 +	if (!gconn)
 +		return -EINVAL;
 +
 +	spin_lock_irqsave(&gconn->lock, flags);
-+	if (size == gconn->num_modes * sizeof(*gconn->modes))
-+		memcpy(data, gconn->modes, size);
-+	else
-+		ret = -EPROTO;
++	size = min(size, gconn->num_modes * sizeof(*gconn->modes));
++	memcpy(data, gconn->modes, size);
 +	spin_unlock_irqrestore(&gconn->lock, flags);
 +
-+	return ret;
++	return size;
 +}
 +
 +static int gud_gadget_req_get_connector_edid(struct gud_gadget *gdg, unsigned int index,
@@ -825,20 +837,21 @@ index 000000000000..6a7f64d2de22
 +{
 +	struct gud_gadget_connector *gconn;
 +	unsigned long flags;
-+	int ret = size;
++
++	size = rounddown(size, EDID_LENGTH);
++	if (!size)
++		return -EPROTO;
 +
 +	gconn = gud_gadget_get_gconn(gdg, index);
 +	if (!gconn)
 +		return -EINVAL;
 +
 +	spin_lock_irqsave(&gconn->lock, flags);
-+	if (size == gconn->edid_len)
-+		memcpy(data, gconn->edid, size);
-+	else
-+		ret = -EPROTO;
++	size = min(size, gconn->edid_len);
++	memcpy(data, gconn->edid, size);
 +	spin_unlock_irqrestore(&gconn->lock, flags);
 +
-+	return ret;
++	return size;
 +}
 +
 +/* This runs in interrupt context */
@@ -861,8 +874,8 @@ index 000000000000..6a7f64d2de22
 +	case GUD_REQ_GET_PROPERTIES:
 +		ret = gud_gadget_req_get_properties(gdg, index, data, size);
 +		break;
-+	case GUD_REQ_GET_CONNECTOR:
-+		ret = gud_gadget_req_get_connector(gdg, index, data, size);
++	case GUD_REQ_GET_CONNECTORS:
++		ret = gud_gadget_req_get_connectors(gdg, index, data, size);
 +		break;
 +	case GUD_REQ_GET_CONNECTOR_PROPERTIES:
 +		ret = gud_gadget_req_get_connector_properties(gdg, index, data, size);
@@ -1131,7 +1144,6 @@ index 000000000000..6a7f64d2de22
 +
 +			prop = GUD_PROPERTY_TV_MODE;
 +			val = connector->state->tv.mode;
-+			val |= gconn->num_tv_mode_enum_names << GUD_CONNECTOR_TV_MODE_NUM_SHIFT;
 +		} else if (property == config->tv_brightness_property) {
 +			prop = GUD_PROPERTY_TV_BRIGHTNESS;
 +			val = connector->state->tv.brightness;
@@ -1370,10 +1382,10 @@ index 000000000000..6a7f64d2de22
 +MODULE_AUTHOR("Noralf Trønnes");
 +MODULE_LICENSE("GPL");
 diff --git a/include/drm/gud.h b/include/drm/gud.h
-index 7200296f46b3..7056f599a8e4 100644
+index a078aad63a31..136c1e36f726 100644
 --- a/include/drm/gud.h
 +++ b/include/drm/gud.h
-@@ -353,4 +353,15 @@ struct gud_state_req {
+@@ -330,4 +330,15 @@ struct gud_state_req {
  /* Enable/disable display/output (DPMS), value is u8: 0/1 */
  #define GUD_REQ_SET_DISPLAY_ENABLE			0x64
  

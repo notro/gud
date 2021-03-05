@@ -1,7 +1,7 @@
-From 1b342837ac150eeeeaf761a00ffe2c0bb20cc94a Mon Sep 17 00:00:00 2001
+From 1d718036b884d1054a9ab63f463dcab62a4aea74 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
 Date: Wed, 6 May 2020 19:09:05 +0200
-Subject: [PATCH v5 05/10] drm/client: Add drm_client_modeset_disable()
+Subject: [PATCH v7 05/11] drm/client: Add drm_client_modeset_disable()
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit

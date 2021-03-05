@@ -1,7 +1,7 @@
 From 6e97ef64d858f6a9106b7b936a838bbefe4cb0fe Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
 Date: Fri, 9 Oct 2020 16:52:24 +0200
-Subject: [PATCH v5 01/10] drm/uapi: Add USB connector type
+Subject: [PATCH v7 01/11] drm/uapi: Add USB connector type
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit

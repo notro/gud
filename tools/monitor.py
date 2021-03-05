@@ -301,47 +301,45 @@ USB_DIR_IN               = 0x80
 USB_TYPE_VENDOR          = (0x02 << 5)
 USB_RECIP_INTERFACE      = 0x01
 
-GUD_DRM_USB_DT_INTERFACE = (USB_TYPE_VENDOR | 0x4)
-
 def BIT(n):
     return 1 << n
 
 
-GUD_DRM_USB_REQ_GET_STATUS = 0x00
-GUD_DRM_USB_REQ_GET_DESCRIPTOR = 0x01
-GUD_DRM_USB_REQ_SET_VERSION = 0x30
-GUD_DRM_USB_REQ_GET_FORMATS = 0x40
-GUD_DRM_USB_REQ_GET_PROPERTIES = 0x41
-GUD_DRM_USB_REQ_GET_CONNECTOR = 0x50
-GUD_DRM_USB_REQ_GET_CONNECTOR_PROPERTIES = 0x51
-GUD_DRM_USB_REQ_GET_CONNECTOR_TV_MODE_VALUES = 0x52
-GUD_DRM_USB_REQ_SET_CONNECTOR_FORCE_DETECT = 0x53
-GUD_DRM_USB_REQ_GET_CONNECTOR_STATUS = 0x54
-GUD_DRM_USB_REQ_GET_CONNECTOR_MODES = 0x55
-GUD_DRM_USB_REQ_GET_CONNECTOR_EDID = 0x56
-GUD_DRM_USB_REQ_SET_BUFFER = 0x60
-GUD_DRM_USB_REQ_SET_MODE_CHECK = 0x61
-GUD_DRM_USB_REQ_SET_MODE_COMMIT = 0x62
-GUD_DRM_USB_REQ_SET_CONTROLLER_ENABLE = 0x63
-GUD_DRM_USB_REQ_SET_DISPLAY_ENABLE = 0x64
+GUD_REQ_GET_STATUS = 0x00
+GUD_REQ_GET_DESCRIPTOR = 0x01
+GUD_REQ_SET_VERSION = 0x30
+GUD_REQ_GET_FORMATS = 0x40
+GUD_REQ_GET_PROPERTIES = 0x41
+GUD_REQ_GET_CONNECTORS = 0x50
+GUD_REQ_GET_CONNECTOR_PROPERTIES = 0x51
+GUD_REQ_GET_CONNECTOR_TV_MODE_VALUES = 0x52
+GUD_REQ_SET_CONNECTOR_FORCE_DETECT = 0x53
+GUD_REQ_GET_CONNECTOR_STATUS = 0x54
+GUD_REQ_GET_CONNECTOR_MODES = 0x55
+GUD_REQ_GET_CONNECTOR_EDID = 0x56
+GUD_REQ_SET_BUFFER = 0x60
+GUD_REQ_SET_MODE_CHECK = 0x61
+GUD_REQ_SET_MODE_COMMIT = 0x62
+GUD_REQ_SET_CONTROLLER_ENABLE = 0x63
+GUD_REQ_SET_DISPLAY_ENABLE = 0x64
 
 req_to_name = {
-    GUD_DRM_USB_REQ_GET_DESCRIPTOR: 'GUD_DRM_USB_REQ_GET_DESCRIPTOR',
-    GUD_DRM_USB_REQ_SET_VERSION: 'GUD_DRM_USB_REQ_SET_VERSION',
-    GUD_DRM_USB_REQ_GET_FORMATS: 'GUD_DRM_USB_REQ_GET_FORMATS',
-    GUD_DRM_USB_REQ_GET_PROPERTIES: 'GUD_DRM_USB_REQ_GET_PROPERTIES',
-    GUD_DRM_USB_REQ_GET_CONNECTOR: 'GUD_DRM_USB_REQ_GET_CONNECTOR',
-    GUD_DRM_USB_REQ_GET_CONNECTOR_PROPERTIES: 'GUD_DRM_USB_REQ_GET_CONNECTOR_PROPERTIES',
-    GUD_DRM_USB_REQ_GET_CONNECTOR_TV_MODE_VALUES: 'GUD_DRM_USB_REQ_GET_CONNECTOR_TV_MODE_VALUES',
-    GUD_DRM_USB_REQ_SET_CONNECTOR_FORCE_DETECT: 'GUD_DRM_USB_REQ_SET_CONNECTOR_FORCE_DETECT',
-    GUD_DRM_USB_REQ_GET_CONNECTOR_STATUS: 'GUD_DRM_USB_REQ_GET_CONNECTOR_STATUS',
-    GUD_DRM_USB_REQ_GET_CONNECTOR_MODES: 'GUD_DRM_USB_REQ_GET_CONNECTOR_MODES',
-    GUD_DRM_USB_REQ_GET_CONNECTOR_EDID: 'GUD_DRM_USB_REQ_GET_CONNECTOR_EDID',
-    GUD_DRM_USB_REQ_SET_BUFFER: 'GUD_DRM_USB_REQ_SET_BUFFER',
-    GUD_DRM_USB_REQ_SET_MODE_CHECK: 'GUD_DRM_USB_REQ_SET_MODE_CHECK',
-    GUD_DRM_USB_REQ_SET_MODE_COMMIT: 'GUD_DRM_USB_REQ_SET_MODE_COMMIT',
-    GUD_DRM_USB_REQ_SET_CONTROLLER_ENABLE: 'GUD_DRM_USB_REQ_SET_CONTROLLER_ENABLE',
-    GUD_DRM_USB_REQ_SET_DISPLAY_ENABLE: 'GUD_DRM_USB_REQ_SET_DISPLAY_ENABLE',
+    GUD_REQ_GET_DESCRIPTOR: 'GUD_REQ_GET_DESCRIPTOR',
+    GUD_REQ_SET_VERSION: 'GUD_REQ_SET_VERSION',
+    GUD_REQ_GET_FORMATS: 'GUD_REQ_GET_FORMATS',
+    GUD_REQ_GET_PROPERTIES: 'GUD_REQ_GET_PROPERTIES',
+    GUD_REQ_GET_CONNECTORS: 'GUD_REQ_GET_CONNECTORS',
+    GUD_REQ_GET_CONNECTOR_PROPERTIES: 'GUD_REQ_GET_CONNECTOR_PROPERTIES',
+    GUD_REQ_GET_CONNECTOR_TV_MODE_VALUES: 'GUD_REQ_GET_CONNECTOR_TV_MODE_VALUES',
+    GUD_REQ_SET_CONNECTOR_FORCE_DETECT: 'GUD_REQ_SET_CONNECTOR_FORCE_DETECT',
+    GUD_REQ_GET_CONNECTOR_STATUS: 'GUD_REQ_GET_CONNECTOR_STATUS',
+    GUD_REQ_GET_CONNECTOR_MODES: 'GUD_REQ_GET_CONNECTOR_MODES',
+    GUD_REQ_GET_CONNECTOR_EDID: 'GUD_REQ_GET_CONNECTOR_EDID',
+    GUD_REQ_SET_BUFFER: 'GUD_REQ_SET_BUFFER',
+    GUD_REQ_SET_MODE_CHECK: 'GUD_REQ_SET_MODE_CHECK',
+    GUD_REQ_SET_MODE_COMMIT: 'GUD_REQ_SET_MODE_COMMIT',
+    GUD_REQ_SET_CONTROLLER_ENABLE: 'GUD_REQ_SET_CONTROLLER_ENABLE',
+    GUD_REQ_SET_DISPLAY_ENABLE: 'GUD_REQ_SET_DISPLAY_ENABLE',
 }
 
 GUD_STATUS_OK = 0x00
@@ -361,38 +359,38 @@ status_to_name = {
 }
 
 
-GUD_DRM_PROPERTY_TV_LEFT_MARGIN             = 1
-GUD_DRM_PROPERTY_TV_RIGHT_MARGIN            = 2
-GUD_DRM_PROPERTY_TV_TOP_MARGIN              = 3
-GUD_DRM_PROPERTY_TV_BOTTOM_MARGIN           = 4
-GUD_DRM_PROPERTY_TV_MODE                    = 5
-GUD_DRM_PROPERTY_TV_BRIGHTNESS              = 6
-GUD_DRM_PROPERTY_TV_CONTRAST                = 7
-GUD_DRM_PROPERTY_TV_FLICKER_REDUCTION       = 8
-GUD_DRM_PROPERTY_TV_OVERSCAN                = 9
-GUD_DRM_PROPERTY_TV_SATURATION              = 10
-GUD_DRM_PROPERTY_TV_HUE                     = 11
-GUD_DRM_PROPERTY_BACKLIGHT_BRIGHTNESS       = 12
-GUD_DRM_PROPERTY_ROTATION                   = 50
+GUD_PROPERTY_TV_LEFT_MARGIN             = 1
+GUD_PROPERTY_TV_RIGHT_MARGIN            = 2
+GUD_PROPERTY_TV_TOP_MARGIN              = 3
+GUD_PROPERTY_TV_BOTTOM_MARGIN           = 4
+GUD_PROPERTY_TV_MODE                    = 5
+GUD_PROPERTY_TV_BRIGHTNESS              = 6
+GUD_PROPERTY_TV_CONTRAST                = 7
+GUD_PROPERTY_TV_FLICKER_REDUCTION       = 8
+GUD_PROPERTY_TV_OVERSCAN                = 9
+GUD_PROPERTY_TV_SATURATION              = 10
+GUD_PROPERTY_TV_HUE                     = 11
+GUD_PROPERTY_BACKLIGHT_BRIGHTNESS       = 12
+GUD_PROPERTY_ROTATION                   = 50
 
 prop_to_name = {
-    GUD_DRM_PROPERTY_TV_LEFT_MARGIN: 'GUD_DRM_PROPERTY_TV_LEFT_MARGIN',
-    GUD_DRM_PROPERTY_TV_RIGHT_MARGIN: 'GUD_DRM_PROPERTY_TV_RIGHT_MARGIN',
-    GUD_DRM_PROPERTY_TV_TOP_MARGIN: 'GUD_DRM_PROPERTY_TV_TOP_MARGIN',
-    GUD_DRM_PROPERTY_TV_BOTTOM_MARGIN: 'GUD_DRM_PROPERTY_TV_BOTTOM_MARGIN',
-    GUD_DRM_PROPERTY_TV_MODE: 'GUD_DRM_PROPERTY_TV_MODE',
-    GUD_DRM_PROPERTY_TV_BRIGHTNESS: 'GUD_DRM_PROPERTY_TV_BRIGHTNESS',
-    GUD_DRM_PROPERTY_TV_CONTRAST: 'GUD_DRM_PROPERTY_TV_CONTRAST',
-    GUD_DRM_PROPERTY_TV_FLICKER_REDUCTION: 'GUD_DRM_PROPERTY_TV_FLICKER_REDUCTION',
-    GUD_DRM_PROPERTY_TV_OVERSCAN: 'GUD_DRM_PROPERTY_TV_OVERSCAN',
-    GUD_DRM_PROPERTY_TV_SATURATION: 'GUD_DRM_PROPERTY_TV_SATURATION',
-    GUD_DRM_PROPERTY_TV_HUE: 'GUD_DRM_PROPERTY_TV_HUE',
-    GUD_DRM_PROPERTY_BACKLIGHT_BRIGHTNESS: 'GUD_DRM_PROPERTY_BACKLIGHT_BRIGHTNESS',
-    GUD_DRM_PROPERTY_ROTATION: 'GUD_DRM_PROPERTY_ROTATION',
+    GUD_PROPERTY_TV_LEFT_MARGIN: 'GUD_PROPERTY_TV_LEFT_MARGIN',
+    GUD_PROPERTY_TV_RIGHT_MARGIN: 'GUD_PROPERTY_TV_RIGHT_MARGIN',
+    GUD_PROPERTY_TV_TOP_MARGIN: 'GUD_PROPERTY_TV_TOP_MARGIN',
+    GUD_PROPERTY_TV_BOTTOM_MARGIN: 'GUD_PROPERTY_TV_BOTTOM_MARGIN',
+    GUD_PROPERTY_TV_MODE: 'GUD_PROPERTY_TV_MODE',
+    GUD_PROPERTY_TV_BRIGHTNESS: 'GUD_PROPERTY_TV_BRIGHTNESS',
+    GUD_PROPERTY_TV_CONTRAST: 'GUD_PROPERTY_TV_CONTRAST',
+    GUD_PROPERTY_TV_FLICKER_REDUCTION: 'GUD_PROPERTY_TV_FLICKER_REDUCTION',
+    GUD_PROPERTY_TV_OVERSCAN: 'GUD_PROPERTY_TV_OVERSCAN',
+    GUD_PROPERTY_TV_SATURATION: 'GUD_PROPERTY_TV_SATURATION',
+    GUD_PROPERTY_TV_HUE: 'GUD_PROPERTY_TV_HUE',
+    GUD_PROPERTY_BACKLIGHT_BRIGHTNESS: 'GUD_PROPERTY_BACKLIGHT_BRIGHTNESS',
+    GUD_PROPERTY_ROTATION: 'GUD_PROPERTY_ROTATION',
 }
 
 
-GUD_DRM_COMPRESSION_LZ4     = BIT(0)
+GUD_COMPRESSION_LZ4     = BIT(0)
 
 class gud_drm_usb_vendor_descriptor(ctypes.LittleEndianStructure):
     _fields_ = [
@@ -405,16 +403,13 @@ class gud_drm_usb_vendor_descriptor(ctypes.LittleEndianStructure):
         ('max_width', ctypes.c_uint32),
         ('min_height', ctypes.c_uint32),
         ('max_height', ctypes.c_uint32),
-        ('num_formats', ctypes.c_uint8),
-        ('num_properties', ctypes.c_uint8),
-        ('num_connectors', ctypes.c_uint8),
     ]
     _pack_ = 1
 
 
-GUD_DRM_DISPLAY_MAGIC = 0x1d50614d
-GUD_DRM_DISPLAY_FLAG_STATUS_ON_SET = BIT(0)
-GUD_DRM_DISPLAY_FLAG_FULL_UPDATE   = BIT(1)
+GUD_DISPLAY_MAGIC = 0x1d50614d
+GUD_DISPLAY_FLAG_STATUS_ON_SET = BIT(0)
+GUD_DISPLAY_FLAG_FULL_UPDATE   = BIT(1)
 
 
 class gud_drm_req_property(ctypes.LittleEndianStructure):
@@ -425,57 +420,47 @@ class gud_drm_req_property(ctypes.LittleEndianStructure):
     _pack_ = 1
 
 
-GUD_DRM_CONNECTOR_TYPE_PANEL        = 0
-GUD_DRM_CONNECTOR_TYPE_VGA          = 1
-GUD_DRM_CONNECTOR_TYPE_COMPOSITE    = 2
-GUD_DRM_CONNECTOR_TYPE_SVIDEO       = 3
-GUD_DRM_CONNECTOR_TYPE_COMPONENT    = 4
-GUD_DRM_CONNECTOR_TYPE_DVI          = 5
-GUD_DRM_CONNECTOR_TYPE_DISPLAYPORT  = 6
-GUD_DRM_CONNECTOR_TYPE_HDMI         = 7
+GUD_CONNECTOR_TYPE_PANEL        = 0
+GUD_CONNECTOR_TYPE_VGA          = 1
+GUD_CONNECTOR_TYPE_COMPOSITE    = 2
+GUD_CONNECTOR_TYPE_SVIDEO       = 3
+GUD_CONNECTOR_TYPE_COMPONENT    = 4
+GUD_CONNECTOR_TYPE_DVI          = 5
+GUD_CONNECTOR_TYPE_DISPLAYPORT  = 6
+GUD_CONNECTOR_TYPE_HDMI         = 7
 
 connector_type_to_name = {
-    GUD_DRM_CONNECTOR_TYPE_PANEL: 'Panel',
-    GUD_DRM_CONNECTOR_TYPE_VGA: 'VGA',
-    GUD_DRM_CONNECTOR_TYPE_COMPOSITE: 'Composite',
-    GUD_DRM_CONNECTOR_TYPE_SVIDEO: 'S-Video',
-    GUD_DRM_CONNECTOR_TYPE_COMPONENT: 'Component',
-    GUD_DRM_CONNECTOR_TYPE_DVI: 'DVI',
-    GUD_DRM_CONNECTOR_TYPE_DISPLAYPORT: 'DisplayPort',
-    GUD_DRM_CONNECTOR_TYPE_HDMI: 'HDMI',
+    GUD_CONNECTOR_TYPE_PANEL: 'Panel',
+    GUD_CONNECTOR_TYPE_VGA: 'VGA',
+    GUD_CONNECTOR_TYPE_COMPOSITE: 'Composite',
+    GUD_CONNECTOR_TYPE_SVIDEO: 'S-Video',
+    GUD_CONNECTOR_TYPE_COMPONENT: 'Component',
+    GUD_CONNECTOR_TYPE_DVI: 'DVI',
+    GUD_CONNECTOR_TYPE_DISPLAYPORT: 'DisplayPort',
+    GUD_CONNECTOR_TYPE_HDMI: 'HDMI',
 }
 
-GUD_DRM_CONNECTOR_FLAGS_POLL    = BIT(0)
+GUD_CONNECTOR_FLAGS_POLL    = BIT(0)
 
 class gud_drm_req_get_connector(ctypes.LittleEndianStructure):
     _fields_ = [
         ('connector_type', ctypes.c_uint8),
         ('flags', ctypes.c_uint32),
-        ('num_properties', ctypes.c_uint8),
     ]
     _pack_ = 1
 
 
-GUD_DRM_CONNECTOR_STATUS_DISCONNECTED   = 0x00
-GUD_DRM_CONNECTOR_STATUS_CONNECTED      = 0x01
-GUD_DRM_CONNECTOR_STATUS_UNKNOWN        = 0x02
-GUD_DRM_CONNECTOR_STATUS_CONNECTED_MASK = 0x3
-GUD_DRM_CONNECTOR_STATUS_CHANGED        = BIT(7)
+GUD_CONNECTOR_STATUS_DISCONNECTED   = 0x00
+GUD_CONNECTOR_STATUS_CONNECTED      = 0x01
+GUD_CONNECTOR_STATUS_UNKNOWN        = 0x02
+GUD_CONNECTOR_STATUS_CONNECTED_MASK = 0x3
+GUD_CONNECTOR_STATUS_CHANGED        = BIT(7)
 
 connector_status_to_name = {
-    GUD_DRM_CONNECTOR_STATUS_DISCONNECTED: 'disconnected',
-    GUD_DRM_CONNECTOR_STATUS_CONNECTED: 'connected',
-    GUD_DRM_CONNECTOR_STATUS_UNKNOWN: 'unknown',
+    GUD_CONNECTOR_STATUS_DISCONNECTED: 'disconnected',
+    GUD_CONNECTOR_STATUS_CONNECTED: 'connected',
+    GUD_CONNECTOR_STATUS_UNKNOWN: 'unknown',
 }
-
-class gud_drm_req_get_connector_status(ctypes.LittleEndianStructure):
-    _fields_ = [
-        ('status', ctypes.c_uint8),
-        ('num_modes', ctypes.c_uint16),
-        ('edid_len', ctypes.c_uint16),
-    ]
-    _pack_ = 1
-
 
 class gud_drm_req_display_mode(ctypes.LittleEndianStructure):
     _fields_ = [
@@ -512,22 +497,21 @@ class gud_drm_req_set_state(ctypes.LittleEndianStructure):
         ('mode', gud_drm_req_display_mode),
         ('format', ctypes.c_uint8),
         ('connector', ctypes.c_uint8),
-        ('num_properties', ctypes.c_uint8),
         # struct gud_drm_req_property properties[];
     ]
     _pack_ = 1
 
 
-GUD_DRM_PIXEL_FORMAT_R1             = 0x01
-GUD_DRM_PIXEL_FORMAT_RGB565         = 0x40
-GUD_DRM_PIXEL_FORMAT_XRGB8888       = 0x80
-GUD_DRM_PIXEL_FORMAT_ARGB8888       = 0x81
+GUD_PIXEL_FORMAT_R1             = 0x01
+GUD_PIXEL_FORMAT_RGB565         = 0x40
+GUD_PIXEL_FORMAT_XRGB8888       = 0x80
+GUD_PIXEL_FORMAT_ARGB8888       = 0x81
 
 pixel_format_to_name = {
-    GUD_DRM_PIXEL_FORMAT_R1: 'R1',
-    GUD_DRM_PIXEL_FORMAT_RGB565: 'RGB565',
-    GUD_DRM_PIXEL_FORMAT_XRGB8888: 'XRGB8888',
-    GUD_DRM_PIXEL_FORMAT_ARGB8888: 'ARGB8888',
+    GUD_PIXEL_FORMAT_R1: 'R1',
+    GUD_PIXEL_FORMAT_RGB565: 'RGB565',
+    GUD_PIXEL_FORMAT_XRGB8888: 'XRGB8888',
+    GUD_PIXEL_FORMAT_ARGB8888: 'ARGB8888',
 
 }
 
@@ -536,10 +520,10 @@ pixel_format_to_name = {
 
 class Flags:
     def __init__(self):
-        self.GUD_DRM_DISPLAY_FLAG_STATUS_ON_SET = None
+        self.GUD_DISPLAY_FLAG_STATUS_ON_SET = None
 
     def set(self, flags):
-        self.GUD_DRM_DISPLAY_FLAG_STATUS_ON_SET = bool(flags & GUD_DRM_DISPLAY_FLAG_STATUS_ON_SET)
+        self.GUD_DISPLAY_FLAG_STATUS_ON_SET = bool(flags & GUD_DISPLAY_FLAG_STATUS_ON_SET)
 
 
 class Transfer:
@@ -551,13 +535,13 @@ class Transfer:
         self.data = urb.data
         self.status_urb = None
 
-        if not urb.dirin and flags.GUD_DRM_DISPLAY_FLAG_STATUS_ON_SET:
+        if not urb.dirin and flags.GUD_DISPLAY_FLAG_STATUS_ON_SET:
             self.status = -errno.EINPROGRESS
         else:
             self.status = urb.status
 
     def add_status(self, urb):
-        if not urb.dirin or urb.setup.bRequest != GUD_DRM_USB_REQ_GET_STATUS:
+        if not urb.dirin or urb.setup.bRequest != GUD_REQ_GET_STATUS:
             raise ValueError('Not a status urb:', urb)
         self.status_urb = urb
         if urb.status == 0:
@@ -581,21 +565,23 @@ class Transfer:
             return ''
         elif len(self.data) == 1:
             return int(self.data[0])
-        elif self.request == GUD_DRM_USB_REQ_GET_DESCRIPTOR and len(self.data) == ctypes.sizeof(gud_drm_usb_vendor_descriptor):
+        elif self.request == GUD_REQ_GET_DESCRIPTOR and len(self.data) == ctypes.sizeof(gud_drm_usb_vendor_descriptor):
             return gud_drm_usb_vendor_descriptor.from_buffer_copy(self.data)
-        elif self.request in (GUD_DRM_USB_REQ_GET_PROPERTIES, GUD_DRM_USB_REQ_GET_CONNECTOR_PROPERTIES):
+        elif self.request in (GUD_REQ_GET_PROPERTIES, GUD_REQ_GET_CONNECTOR_PROPERTIES):
             num = len(self.data) // ctypes.sizeof(gud_drm_req_property)
             return (gud_drm_req_property * num).from_buffer_copy(self.data)
-        elif self.request == GUD_DRM_USB_REQ_GET_CONNECTOR:
-            return gud_drm_req_get_connector.from_buffer_copy(self.data)
-        elif self.request == GUD_DRM_USB_REQ_GET_CONNECTOR_STATUS:
-            return gud_drm_req_get_connector_status.from_buffer_copy(self.data)
-        elif self.request == GUD_DRM_USB_REQ_GET_CONNECTOR_MODES:
+        elif self.request == GUD_REQ_GET_CONNECTORS:
+            num = len(self.data) // ctypes.sizeof(gud_drm_req_get_connector)
+            return (gud_drm_req_get_connector * num).from_buffer_copy(self.data)
+        elif self.request == GUD_REQ_GET_CONNECTOR_STATUS:
+            return ctypes.c_uint8(self.data)
+        elif self.request == GUD_REQ_GET_CONNECTOR_MODES:
             num = len(self.data) // ctypes.sizeof(gud_drm_req_display_mode)
             return (gud_drm_req_display_mode * num).from_buffer_copy(self.data)
-        elif self.request == GUD_DRM_USB_REQ_SET_MODE_CHECK:
+        elif self.request == GUD_REQ_SET_MODE_CHECK:
             sz = ctypes.sizeof(gud_drm_req_set_state)
             val = gud_drm_req_set_state.from_buffer_copy(self.data[:sz])
+            val.num_properties = (len(self.data) - sz) // ctypes.sizeof(gud_drm_req_property)
             val.properties = (gud_drm_req_property * val.num_properties).from_buffer_copy(self.data[sz:])
             return val
         else:
@@ -619,57 +605,52 @@ class Transfer:
             if self.status > 0:
                 s += f' error={status_to_name.get(self.status, self.status)}'
 
-            if self.request == GUD_DRM_USB_REQ_GET_DESCRIPTOR and len(self.data) == ctypes.sizeof(gud_drm_usb_vendor_descriptor):
+            if self.request == GUD_REQ_GET_DESCRIPTOR and len(self.data) == ctypes.sizeof(gud_drm_usb_vendor_descriptor):
                 s += f'\n'
                 s += f'    version={self.value.version}\n'
-                s += f'    flags=0x{self.value.flags:x}\n'
-                s += f'    compression=0x{self.value.compression:x}\n'
+                s += f'    flags=0x{self.value.flags:08x}\n'
+                s += f'    compression=0x{self.value.compression:02x}\n'
                 s += f'    max_buffer_size={self.value.max_buffer_size}\n'
                 s += f'    min_width={self.value.min_width}\n'
                 s += f'    max_width={self.value.max_width}\n'
                 s += f'    min_height={self.value.min_height}\n'
                 s += f'    max_height={self.value.max_height}\n'
-                s += f'    num_formats={self.value.num_formats}\n'
-                s += f'    num_properties={self.value.num_properties}\n'
-                s += f'    num_connectors={self.value.num_connectors}\n'
                 s += '   '
 
-            elif self.request == GUD_DRM_USB_REQ_GET_FORMATS:
+            elif self.request == GUD_REQ_GET_FORMATS:
                 for fmt in self.value:
                     s += f' {pixel_format_to_name.get(fmt, "??")}'
 
-            elif self.request in (GUD_DRM_USB_REQ_GET_PROPERTIES, GUD_DRM_USB_REQ_GET_CONNECTOR_PROPERTIES):
+            elif self.request in (GUD_REQ_GET_PROPERTIES, GUD_REQ_GET_CONNECTOR_PROPERTIES):
                 s += f'\n'
                 s += self.props_to_str(self.value)
                 s += '   '
 
-            elif self.request == GUD_DRM_USB_REQ_GET_CONNECTOR:
-                s += f' index={self.index}'
-                s += f' type={connector_type_to_name.get(self.value.connector_type, "Unknown")}'
-                s += f' flags={self.value.flags:x}'
-                s += f' num_properties={self.value.num_properties}'
+            elif self.request == GUD_REQ_GET_CONNECTORS:
+                s += f'\n'
+                for idx, connector in enumerate(self.value):
+                    s += f'    index={idx}'
+                    s += f' type={connector_type_to_name.get(connector.connector_type, "Unknown")}'
+                    s += f' flags=0x{connector.flags:08x}\n'
 
-            elif self.request == GUD_DRM_USB_REQ_GET_CONNECTOR_STATUS:
-                value = self.value
+            elif self.request == GUD_REQ_GET_CONNECTOR_STATUS:
                 s += f' index={self.index}'
-                status = value.status & GUD_DRM_CONNECTOR_STATUS_CONNECTED_MASK
+                status = self.value & GUD_CONNECTOR_STATUS_CONNECTED_MASK
                 sn = connector_status_to_name.get(status, f'ILLEGAL:{status}')
                 s += f' status={sn}'
-                if value.status & GUD_DRM_CONNECTOR_STATUS_CHANGED:
+                if self.value & GUD_CONNECTOR_STATUS_CHANGED:
                     s += ' (CHANGED)'
-                s += f' num_modes={value.num_modes}'
-                s += f' edid_len={value.edid_len}'
 
-            elif self.request == GUD_DRM_USB_REQ_GET_CONNECTOR_MODES:
+            elif self.request == GUD_REQ_GET_CONNECTOR_MODES:
                 s += f'\n'
                 for mode in self.value:
                     s += f'    mode={mode.hdisplay}x{mode.vdisplay}\n'
                 s += '   '
 
-            elif self.request == GUD_DRM_USB_REQ_GET_CONNECTOR_EDID:
+            elif self.request == GUD_REQ_GET_CONNECTOR_EDID:
                 s += f' len={len(self.value)}'
 
-            elif self.request == GUD_DRM_USB_REQ_SET_MODE_CHECK:
+            elif self.request == GUD_REQ_SET_MODE_CHECK:
                 mode = self.value.mode
                 s += f' mode={mode.hdisplay}x{mode.vdisplay}'
                 s += f' format={pixel_format_to_name.get(self.value.format, "??")}'
@@ -705,7 +686,10 @@ class Flush:
         s += f'length={self.value.length}'
         if self.value.compression:
             s += f'/{self.value.compressed_length} '
-            s += f'({(self.value.length / self.value.compressed_length):.1f})'
+            if self.value.compressed_length:
+                s += f'({(self.value.length / self.value.compressed_length):.1f})'
+            else:
+                s += f'(ILLEGAL)'
 
         bulk_duration = (self.bulk.ts_end - self.bulk.ts_start) * 1000
         s += f' ({self.ctrl.duration():5.1f} + {bulk_duration:.1f} = {self.duration:5.1f} ms)'
@@ -734,7 +718,10 @@ class FlushStat:
         self.len = flush.value.length
         self.len_compressed = flush.value.compressed_length
         if flush.value.compression:
-            self.compression = flush.value.length / flush.value.compressed_length
+            if flush.value.compressed_length:
+                self.compression = flush.value.length / flush.value.compressed_length
+            else:
+                self.compression = 0.0
         else:
             self.compression = 1.0
 
@@ -924,7 +911,7 @@ def monitor(busnum, devnum=None, debug=False):
 
         # Look for the display descriptor if DISCOVER
         if (devnum is None and urb.type == PIPE_CONTROL and
-            urb.setup.bRequest == GUD_DRM_USB_REQ_GET_DESCRIPTOR and
+            urb.setup.bRequest == GUD_REQ_GET_DESCRIPTOR and
             urb.setup.bRequestType == (USB_DIR_IN | USB_TYPE_VENDOR | USB_RECIP_INTERFACE) and
             urb.setup.wValue == 0 and urb.len == ctypes.sizeof(gud_drm_usb_vendor_descriptor)
         ):
@@ -940,13 +927,13 @@ def monitor(busnum, devnum=None, debug=False):
             continue
 
         if urb.type == PIPE_CONTROL:
-            if urb.setup.bRequest == GUD_DRM_USB_REQ_GET_STATUS:
+            if urb.setup.bRequest == GUD_REQ_GET_STATUS:
                 if transfer:
                     transfer.add_status(urb)
                 else:
-                    if flags.GUD_DRM_DISPLAY_FLAG_STATUS_ON_SET is None:
-                        flags.GUD_DRM_DISPLAY_FLAG_STATUS_ON_SET = True
-                        print('Detected: GUD_DRM_DISPLAY_FLAG_STATUS_ON_SET')
+                    if flags.GUD_DISPLAY_FLAG_STATUS_ON_SET is None:
+                        flags.GUD_DISPLAY_FLAG_STATUS_ON_SET = True
+                        print('Detected: GUD_DISPLAY_FLAG_STATUS_ON_SET')
                     else:
                         print('Dangling status urb:', urb)
                     continue
@@ -954,7 +941,7 @@ def monitor(busnum, devnum=None, debug=False):
                 transfer = Transfer(urb, flags)
 
             if transfer.done():
-                if transfer.request == GUD_DRM_USB_REQ_SET_BUFFER:
+                if transfer.request == GUD_REQ_SET_BUFFER:
                     control_flush = transfer
                 else:
                     print(transfer)

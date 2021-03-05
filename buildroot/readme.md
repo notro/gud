@@ -1,5 +1,5 @@
-Raspberry Pi as a Generic USB Display
--------------------------------------
+Raspberry Pi as a GUD USB Display
+---------------------------------
 
 
 Build:
@@ -19,11 +19,11 @@ build-raspberrypi0/images/sdcard.img
 Release build:
 
 ```
-$ GUD_VERSION=0.05 ../gud/buildroot/build.sh pi0 release 2>&1 | tee build0.log
+$ GUD_VERSION=0.07 ../gud/buildroot/build.sh pi0 release 2>&1 | tee build0.log
 
 $ ls *.{img,zip}
-gud-raspberrypi0-0.04.img
-gud-raspberrypi0-0.04.zip
+gud-raspberrypi0-0.07.img
+gud-raspberrypi0-0.07.zip
 
 ```
 
@@ -37,18 +37,18 @@ Device Descriptor:
 [...]
   idVendor           0x1d50 OpenMoko, Inc.
   idProduct          0x614d
-  bcdDevice            0.04
+  bcdDevice            0.07
 ```
 
 ```
 # cat /etc/os-release
 NAME=Buildroot
-VERSION=2020.11.1
+VERSION=2020.11.3
 ID=buildroot
-VERSION_ID=2020.11.1
-PRETTY_NAME="Buildroot 2020.11.1"
-GUD_VERSION=0.04
-GUD_VERSION_BCD=0x0004
+VERSION_ID=2020.11.3
+PRETTY_NAME="Buildroot 2020.11.3"
+GUD_VERSION=0.07
+GUD_VERSION_BCD=0x0007
 ```
 
 Wiki: https://github.com/notro/gud/wiki/rpi-image

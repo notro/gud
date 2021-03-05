@@ -1,13 +1,12 @@
-From 3ecf17d7e2393c30fcacfe34df213a193cfd3ce2 Mon Sep 17 00:00:00 2001
+From 18f869845d6cc6afdd41eeb171751e0df8e7d87e Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
 Date: Tue, 28 Apr 2020 17:38:02 +0200
-Subject: [PATCH v5 08/10] usb: gadget: function: Add Generic USB Display
- support
+Subject: [PATCH v7 08/11] usb: gadget: function: Add GUD USB Display support
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
 
-This adds the gadget side support for the Generic USB Display. It presents
+This adds the gadget side support for the GUD USB Display. It presents
 a DRM display device as a USB Display configured through configfs.
 
 The display is implemented as a vendor type USB interface with one bulk
@@ -22,10 +21,11 @@ Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
 ---
  .../ABI/testing/configfs-usb-gadget-gud       |  10 +
  MAINTAINERS                                   |   2 +
+ drivers/gpu/drm/gud/gud_gadget.c              |   2 +-
  drivers/usb/gadget/Kconfig                    |  12 +
  drivers/usb/gadget/function/Makefile          |   2 +
- drivers/usb/gadget/function/f_gud.c           | 742 ++++++++++++++++++
- 5 files changed, 768 insertions(+)
+ drivers/usb/gadget/function/f_gud.c           | 743 ++++++++++++++++++
+ 6 files changed, 770 insertions(+), 1 deletion(-)
  create mode 100644 Documentation/ABI/testing/configfs-usb-gadget-gud
  create mode 100644 drivers/usb/gadget/function/f_gud.c
 
@@ -59,6 +59,19 @@ index e7f71ac55f08..abc5fd5d4aab 100644
  F:	include/drm/gud.h
  
  DRM DRIVER FOR GRAIN MEDIA GM12U320 PROJECTORS
+diff --git a/drivers/gpu/drm/gud/gud_gadget.c b/drivers/gpu/drm/gud/gud_gadget.c
+index 3b6259d06834..457d691f5304 100644
+--- a/drivers/gpu/drm/gud/gud_gadget.c
++++ b/drivers/gpu/drm/gud/gud_gadget.c
+@@ -561,7 +561,7 @@ static int gud_gadget_req_get_descriptor(struct gud_gadget *gdg, unsigned int in
+ 	if (index || !size)
+ 		return -EPROTO;
+ 
+-	desc.magic = GUD_DISPLAY_MAGIC;
++	desc.magic = cpu_to_le32(GUD_DISPLAY_MAGIC);
+ 	desc.version = 1;
+ 	desc.max_buffer_size = cpu_to_le32(gdg->max_buffer_size);
+ 	desc.flags = cpu_to_le32(GUD_DISPLAY_FLAG_STATUS_ON_SET);
 diff --git a/drivers/usb/gadget/Kconfig b/drivers/usb/gadget/Kconfig
 index 2d152571a7de..e0dfa79cc84c 100644
 --- a/drivers/usb/gadget/Kconfig
@@ -101,10 +114,10 @@ index 5d3a6cf02218..c5377f44cb4b 100644
 +obj-$(CONFIG_USB_F_GUD)	+= usb_f_gud.o
 diff --git a/drivers/usb/gadget/function/f_gud.c b/drivers/usb/gadget/function/f_gud.c
 new file mode 100644
-index 000000000000..af7f17f0af49
+index 000000000000..db2bff2441fc
 --- /dev/null
 +++ b/drivers/usb/gadget/function/f_gud.c
-@@ -0,0 +1,742 @@
+@@ -0,0 +1,743 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Copyright (C) 2020 Noralf Trønnes
@@ -442,8 +455,9 @@ index 000000000000..af7f17f0af49
 +		} else {
 +			ret = gud_gadget_req_get(fgd->gdg, ctrl->bRequest, value,
 +						 cdev->req->buf, length);
-+			if (ret > 0) {
++			if (ret >= 0) {
 +				cdev->req->length = ret;
++				cdev->req->zero = ret < length;
 +				ret = usb_ep_queue(cdev->gadget->ep0, cdev->req, GFP_ATOMIC);
 +			}
 +		}
