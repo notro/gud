@@ -34,6 +34,8 @@
 uint16_t framebuffer[WIDTH * HEIGHT];
 uint16_t compress_buf[WIDTH * HEIGHT];
 
+uint16_t buffer_test[WIDTH * HEIGHT];
+
 static const struct mipi_dbi dbi = {
     .spi = spi0,
     .sck = 18,
@@ -137,12 +139,59 @@ static int set_buffer(const struct gud_display *disp, const struct gud_set_buffe
     return 0;
 }
 
+static size_t r1_to_rgb565(uint16_t *dst, uint8_t *src, uint16_t src_width, uint16_t src_height)
+{
+    uint8_t val = 0;
+    size_t len = 0;
+
+    for (uint16_t y = 0; y < src_height; y++) {
+        for (uint16_t x = 0; x < src_width; x++) {
+            if (!(x % 8))
+                val = *src++;
+            *dst++ = val & 0x80 ? 0xffffffff : 0;
+            len += sizeof(*dst);
+            val <<= 1;
+        }
+   }
+
+   return len;
+}
+
+static size_t rgb111_to_rgb565(uint16_t *dst, uint8_t *src, uint16_t src_width, uint16_t src_height)
+{
+    uint8_t rgb111, val = 0;
+    size_t len = 0;
+
+    for (uint16_t y = 0; y < src_height; y++) {
+        for (uint16_t x = 0; x < src_width; x++) {
+            if (!(x % 2))
+                val = *src++;
+            rgb111 = val >> 4;
+            *dst++ = ((rgb111 & 0x04) << 13) | ((rgb111 & 0x02) << 9) | ((rgb111 & 0x01) << 4);
+            len += sizeof(*dst);
+            val <<= 4;
+        }
+    }
+
+   return len;
+}
+
 static void write_buffer(const struct gud_display *disp, const struct gud_set_buffer_req *set_buf, void *buf)
 {
+    uint32_t length = set_buf->length;
+
     LOG2("%s: x=%u y=%u width=%u height=%u length=%u compression=0x%x\n", __func__,
          set_buf->x, set_buf->y, set_buf->width, set_buf->height, set_buf->length, set_buf->compression);
 
-    mipi_dbi_update16(&dbi, set_buf->x + 40, set_buf->y + 53, set_buf->width, set_buf->height, buf, set_buf->length);
+    if (disp->formats[0] == GUD_PIXEL_FORMAT_R1) {
+        length = r1_to_rgb565(buffer_test, buf, set_buf->width, set_buf->height);
+        buf = buffer_test;
+    } else if (disp->formats[0] == GUD_PIXEL_FORMAT_RGB111) {
+        length = rgb111_to_rgb565(buffer_test, buf, set_buf->width, set_buf->height);
+        buf = buffer_test;
+    }
+
+    mipi_dbi_update16(&dbi, set_buf->x + 40, set_buf->y + 53, set_buf->width, set_buf->height, buf, length);
 
     if (LED_ACTION == 1)
         board_led_write(true);
@@ -151,6 +200,8 @@ static void write_buffer(const struct gud_display *disp, const struct gud_set_bu
 }
 
 static const uint8_t pixel_formats[] = {
+//    GUD_PIXEL_FORMAT_R1,
+//    GUD_PIXEL_FORMAT_RGB111,
     GUD_PIXEL_FORMAT_RGB565,
 };
 
@@ -183,6 +234,8 @@ static const struct gud_display_edid edid = {
 const struct gud_display display = {
     .width = WIDTH,
     .height = HEIGHT,
+
+//    .flags = GUD_DISPLAY_FLAG_FULL_UPDATE,
 
     .compression = GUD_COMPRESSION_LZ4,
 
