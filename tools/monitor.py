@@ -318,8 +318,8 @@ GUD_REQ_GET_CONNECTOR_STATUS = 0x54
 GUD_REQ_GET_CONNECTOR_MODES = 0x55
 GUD_REQ_GET_CONNECTOR_EDID = 0x56
 GUD_REQ_SET_BUFFER = 0x60
-GUD_REQ_SET_MODE_CHECK = 0x61
-GUD_REQ_SET_MODE_COMMIT = 0x62
+GUD_REQ_SET_STATE_CHECK = 0x61
+GUD_REQ_SET_STATE_COMMIT = 0x62
 GUD_REQ_SET_CONTROLLER_ENABLE = 0x63
 GUD_REQ_SET_DISPLAY_ENABLE = 0x64
 
@@ -336,8 +336,8 @@ req_to_name = {
     GUD_REQ_GET_CONNECTOR_MODES: 'GUD_REQ_GET_CONNECTOR_MODES',
     GUD_REQ_GET_CONNECTOR_EDID: 'GUD_REQ_GET_CONNECTOR_EDID',
     GUD_REQ_SET_BUFFER: 'GUD_REQ_SET_BUFFER',
-    GUD_REQ_SET_MODE_CHECK: 'GUD_REQ_SET_MODE_CHECK',
-    GUD_REQ_SET_MODE_COMMIT: 'GUD_REQ_SET_MODE_COMMIT',
+    GUD_REQ_SET_STATE_CHECK: 'GUD_REQ_SET_STATE_CHECK',
+    GUD_REQ_SET_STATE_COMMIT: 'GUD_REQ_SET_STATE_COMMIT',
     GUD_REQ_SET_CONTROLLER_ENABLE: 'GUD_REQ_SET_CONTROLLER_ENABLE',
     GUD_REQ_SET_DISPLAY_ENABLE: 'GUD_REQ_SET_DISPLAY_ENABLE',
 }
@@ -503,12 +503,14 @@ class gud_drm_req_set_state(ctypes.LittleEndianStructure):
 
 
 GUD_PIXEL_FORMAT_R1             = 0x01
+GUD_PIXEL_FORMAT_RGB111         = 0x20
 GUD_PIXEL_FORMAT_RGB565         = 0x40
 GUD_PIXEL_FORMAT_XRGB8888       = 0x80
 GUD_PIXEL_FORMAT_ARGB8888       = 0x81
 
 pixel_format_to_name = {
     GUD_PIXEL_FORMAT_R1: 'R1',
+    GUD_PIXEL_FORMAT_RGB111: 'RGB111',
     GUD_PIXEL_FORMAT_RGB565: 'RGB565',
     GUD_PIXEL_FORMAT_XRGB8888: 'XRGB8888',
     GUD_PIXEL_FORMAT_ARGB8888: 'ARGB8888',
@@ -521,9 +523,11 @@ pixel_format_to_name = {
 class Flags:
     def __init__(self):
         self.GUD_DISPLAY_FLAG_STATUS_ON_SET = None
+        self.GUD_DISPLAY_FLAG_FULL_UPDATE = None
 
     def set(self, flags):
         self.GUD_DISPLAY_FLAG_STATUS_ON_SET = bool(flags & GUD_DISPLAY_FLAG_STATUS_ON_SET)
+        self.GUD_DISPLAY_FLAG_FULL_UPDATE = bool(flags & GUD_DISPLAY_FLAG_STATUS_ON_SET)
 
 
 class Transfer:
@@ -563,8 +567,8 @@ class Transfer:
     def value(self):
         if len(self.data) == 0:
             return ''
-        elif len(self.data) == 1:
-            return int(self.data[0])
+        elif self.request == GUD_REQ_GET_FORMATS:
+            return self.data
         elif self.request == GUD_REQ_GET_DESCRIPTOR and len(self.data) == ctypes.sizeof(gud_drm_usb_vendor_descriptor):
             return gud_drm_usb_vendor_descriptor.from_buffer_copy(self.data)
         elif self.request in (GUD_REQ_GET_PROPERTIES, GUD_REQ_GET_CONNECTOR_PROPERTIES):
@@ -574,16 +578,20 @@ class Transfer:
             num = len(self.data) // ctypes.sizeof(gud_drm_req_get_connector)
             return (gud_drm_req_get_connector * num).from_buffer_copy(self.data)
         elif self.request == GUD_REQ_GET_CONNECTOR_STATUS:
-            return ctypes.c_uint8(self.data)
+            return int(self.data[0])
         elif self.request == GUD_REQ_GET_CONNECTOR_MODES:
             num = len(self.data) // ctypes.sizeof(gud_drm_req_display_mode)
             return (gud_drm_req_display_mode * num).from_buffer_copy(self.data)
-        elif self.request == GUD_REQ_SET_MODE_CHECK:
+        elif self.request == GUD_REQ_SET_BUFFER:
+            return gud_drm_req_set_buffer.from_buffer_copy(self.data)
+        elif self.request == GUD_REQ_SET_STATE_CHECK:
             sz = ctypes.sizeof(gud_drm_req_set_state)
             val = gud_drm_req_set_state.from_buffer_copy(self.data[:sz])
             val.num_properties = (len(self.data) - sz) // ctypes.sizeof(gud_drm_req_property)
             val.properties = (gud_drm_req_property * val.num_properties).from_buffer_copy(self.data[sz:])
             return val
+        elif len(self.data) == 1:
+            return int(self.data[0])
         else:
             return self.data
 
@@ -650,7 +658,17 @@ class Transfer:
             elif self.request == GUD_REQ_GET_CONNECTOR_EDID:
                 s += f' len={len(self.value)}'
 
-            elif self.request == GUD_REQ_SET_MODE_CHECK:
+            elif self.request == GUD_REQ_SET_BUFFER:
+                s += f' {self.value.width}x{self.value.height}+{self.value.x}+{self.value.y}'
+                s += f' length={self.value.length}'
+                if self.value.compression:
+                    s += f'/{self.value.compressed_length}'
+                    if self.value.compressed_length:
+                        s += f'({(self.value.length / self.value.compressed_length):.1f})'
+                    else:
+                        s += f'(ILLEGAL)'
+
+            elif self.request == GUD_REQ_SET_STATE_CHECK:
                 mode = self.value.mode
                 s += f' mode={mode.hdisplay}x{mode.vdisplay}'
                 s += f' format={pixel_format_to_name.get(self.value.format, "??")}'
@@ -942,7 +960,12 @@ def monitor(busnum, devnum=None, debug=False):
 
             if transfer.done():
                 if transfer.request == GUD_REQ_SET_BUFFER:
-                    control_flush = transfer
+                    if transfer.status or debug:
+                        print(transfer)
+                        if debug:
+                            print()
+                    if not transfer.status:
+                        control_flush = transfer
                 else:
                     print(transfer)
                     if debug:
@@ -954,6 +977,7 @@ def monitor(busnum, devnum=None, debug=False):
                 flush = Flush(control_flush, urb)
                 control_flush = None
             else:
+                # FIXME: GUD_DISPLAY_FLAG_FULL_UPDATE ends up here
                 print('Dangling bulk urb:', urb)
 
         elif not debug:
