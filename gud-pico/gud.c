@@ -337,20 +337,9 @@ static int gud_req_set_buffer(const struct gud_display *disp, const struct gud_s
 	if (req->compression && !req->compressed_length)
 		return -GUD_STATUS_INVALID_PARAMETER;
 
-	switch (_state.format) {
-	case GUD_PIXEL_FORMAT_R1:
-		length = req->width * req->height / 8;
-		break;
-	case GUD_PIXEL_FORMAT_RGB565:
-		length = req->width * req->height * 2;
-		break;
-	case GUD_PIXEL_FORMAT_XRGB8888:
-	case GUD_PIXEL_FORMAT_ARGB8888:
-		length = req->width * req->height * 4;
-		break;
-	default:
+	length = gud_get_buffer_length(_state.format, req->width, req->height);
+	if (!length)
 		return -GUD_STATUS_INVALID_PARAMETER;
-	}
 
 	if (req->length != length)
 		return -GUD_STATUS_INVALID_PARAMETER;
