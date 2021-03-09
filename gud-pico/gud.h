@@ -375,6 +375,7 @@ struct gud_display {
 	void (*write_buffer)(const struct gud_display *disp, const struct gud_set_buffer_req *set_buf, void *buf);
 };
 
+uint32_t gud_get_buffer_length(uint8_t format, uint32_t width, uint32_t height);
 int gud_req_get(const struct gud_display *disp, uint8_t request, uint16_t index, void *data, size_t size);
 int gud_req_set(const struct gud_display *disp, uint8_t request, uint16_t index, const void *data, size_t size);
 void gud_write_buffer(const struct gud_display *disp, void *buf);

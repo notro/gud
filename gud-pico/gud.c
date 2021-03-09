@@ -12,7 +12,7 @@
 
 #define min(a,b)	(((a) < (b)) ? (a) : (b))
 
-#define div_round_up(a,b)	(((a) + ((b) / 2)) / (b))
+#define div_round_up(n,d)	(((n) + (d) - 1) / (d))
 
 struct gud_set_buffer_req _set_buf;
 
@@ -298,6 +298,26 @@ int gud_req_get(const struct gud_display *disp, uint8_t request, uint16_t index,
 	return ret;
 }
 
+uint32_t gud_get_buffer_length(uint8_t format, uint32_t width, uint32_t height)
+{
+    if (!width || !height)
+        return 0;
+
+    switch (format) {
+    case GUD_PIXEL_FORMAT_R1:
+        return div_round_up(width, 8) * height;
+    case GUD_PIXEL_FORMAT_RGB111:
+        return div_round_up(width, 2) * height;
+    case GUD_PIXEL_FORMAT_RGB565:
+        return width * height * 2;
+    case GUD_PIXEL_FORMAT_XRGB8888:
+    case GUD_PIXEL_FORMAT_ARGB8888:
+        return width * height * 4;
+    }
+
+    return 0;
+}
+
 static int gud_req_set_buffer(const struct gud_display *disp, const struct gud_set_buffer_req *req, size_t size)
 {
 	size_t length;
@@ -375,6 +395,16 @@ static int gud_req_set_state_check(const struct gud_display *disp, const struct 
 
 	memcpy(&_state, req, size);
 	_state_num_properties = num_properties;
+
+    if (disp->flags & GUD_DISPLAY_FLAG_FULL_UPDATE) {
+        _set_buf.x = 0;
+        _set_buf.y = 0;
+        _set_buf.width = disp->width;
+        _set_buf.height = disp->height;
+        _set_buf.length = gud_get_buffer_length(req->format, disp->width, disp->height);
+        _set_buf.compression = 0;
+        _set_buf.compressed_length = 0;
+    }
 
 	return 0;
 }

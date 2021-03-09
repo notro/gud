@@ -141,7 +141,26 @@ static bool gud_driver_control_complete(uint8_t rhport, tusb_control_request_t c
             _gud_itf.len = buf_req->length;
             _gud_itf.xfer_len = len;
 
+            TU_ASSERT(!usbd_edpt_busy(rhport, _gud_itf.ep_out));
+
             return usbd_edpt_xfer(rhport, _gud_itf.ep_out, _bulk_dst, len);
+        }
+
+        if (req->bRequest == GUD_REQ_SET_STATE_CHECK && _display->flags & GUD_DISPLAY_FLAG_FULL_UPDATE) {
+            if (!usbd_edpt_busy(rhport, _gud_itf.ep_out)) {
+                const struct gud_state_req *req = (const struct gud_state_req *)_ctrl_req_buf;
+
+                uint32_t len = gud_get_buffer_length(req->format, _display->width, _display->height);
+                if (!len) {
+                    status = GUD_STATUS_INVALID_PARAMETER;
+                    return false;
+                }
+
+                _gud_itf.len = len;
+                _gud_itf.xfer_len = len;
+
+                return usbd_edpt_xfer(rhport, _gud_itf.ep_out, _framebuffer, len);
+            }
         }
     }
 
@@ -167,6 +186,10 @@ static bool gud_driver_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t re
         }
 
         gud_write_buffer(_display, _framebuffer);
+
+        if (_display->flags & GUD_DISPLAY_FLAG_FULL_UPDATE)
+            return usbd_edpt_xfer(rhport, _gud_itf.ep_out, _framebuffer, _gud_itf.xfer_len);
+
     } else {
         GUD_DRV_LOG1("%s: UNHANDLED: xferred_bytes=%u != _gud_itf.xfer_len=%u\n", __func__, xferred_bytes, _gud_itf.xfer_len);
     }
