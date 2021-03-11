@@ -41,5 +41,4 @@ $ make
 
 TODO:
 - Find the proper fix for the tinyusb issue
-- Turn this into one or more libraries with an examples directory
 - See if it's possible to use unlz4. It works with the test image in ```modetest``` but hangs when flipping ```modetest -v```
