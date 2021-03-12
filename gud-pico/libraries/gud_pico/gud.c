@@ -306,7 +306,7 @@ uint32_t gud_get_buffer_length(uint8_t format, uint32_t width, uint32_t height)
     switch (format) {
     case GUD_PIXEL_FORMAT_R1:
         return div_round_up(width, 8) * height;
-    case GUD_PIXEL_FORMAT_RGB111:
+    case GUD_PIXEL_FORMAT_XRGB1111:
         return div_round_up(width, 2) * height;
     case GUD_PIXEL_FORMAT_RGB565:
         return width * height * 2;

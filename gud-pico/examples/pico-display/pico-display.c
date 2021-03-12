@@ -186,7 +186,7 @@ static void write_buffer(const struct gud_display *disp, const struct gud_set_bu
     if (disp->formats[0] == GUD_PIXEL_FORMAT_R1) {
         length = r1_to_rgb565(buffer_test, buf, set_buf->width, set_buf->height);
         buf = buffer_test;
-    } else if (disp->formats[0] == GUD_PIXEL_FORMAT_RGB111) {
+    } else if (disp->formats[0] == GUD_PIXEL_FORMAT_XRGB1111) {
         length = rgb111_to_rgb565(buffer_test, buf, set_buf->width, set_buf->height);
         buf = buffer_test;
     }
@@ -201,7 +201,7 @@ static void write_buffer(const struct gud_display *disp, const struct gud_set_bu
 
 static const uint8_t pixel_formats[] = {
 //    GUD_PIXEL_FORMAT_R1,
-//    GUD_PIXEL_FORMAT_RGB111,
+//    GUD_PIXEL_FORMAT_XRGB1111,
     GUD_PIXEL_FORMAT_RGB565,
 };
 

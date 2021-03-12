@@ -254,7 +254,7 @@ struct gud_state_req {
   #define GUD_FORMATS_MAX_NUM			32
   /* R1 is a 1-bit monochrome transfer format presented to userspace as XRGB8888 */
   #define GUD_PIXEL_FORMAT_R1			0x01
-  #define GUD_PIXEL_FORMAT_RGB111		0x20
+  #define GUD_PIXEL_FORMAT_XRGB1111		0x20
   #define GUD_PIXEL_FORMAT_RGB565		0x40
   #define GUD_PIXEL_FORMAT_XRGB8888		0x80
   #define GUD_PIXEL_FORMAT_ARGB8888		0x81
