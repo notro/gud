@@ -12,16 +12,21 @@
 #define GUD_DRV_LOG2
 
 #define GUD_CTRL_REQ_BUF_SIZE   128 // Fits EDID
+// Max usbd_edpt_xfer() xfer size is uint16_t, align to endpoint size
+#define GUD_EDPT_XFER_MAX_SIZE  (0xffff - (0xffff % CFG_GUD_BULK_OUT_SIZE))
 
 #define min(a,b)    (((a) < (b)) ? (a) : (b))
 
 typedef struct
 {
-  uint8_t itf_num;
-  uint8_t ep_out;
+    uint8_t itf_num;
+    uint8_t ep_out;
 
-  uint32_t xfer_len;
-  uint32_t len;
+    uint8_t *buf;
+    uint32_t xfer_len;
+    uint32_t len;
+    uint32_t total_len;
+    uint32_t offset;
 } gud_interface_t;
 
 CFG_TUSB_MEM_SECTION static gud_interface_t _gud_itf;
@@ -29,7 +34,6 @@ CFG_TUSB_MEM_SECTION static gud_interface_t _gud_itf;
 const struct gud_display *_display;
 uint8_t *_framebuffer;
 uint8_t *_compress_buf;
-uint8_t *_bulk_dst;
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _ctrl_req_buf[GUD_CTRL_REQ_BUF_SIZE];
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t status;
@@ -108,6 +112,28 @@ static bool gud_driver_control_request(uint8_t rhport, tusb_control_request_t co
     return false;
 }
 
+static bool gud_driver_bulk_xfer(uint8_t rhport, uint8_t *buf, uint32_t xfer_len, uint32_t len)
+{
+    TU_ASSERT(!usbd_edpt_busy(rhport, _gud_itf.ep_out));
+
+    if (buf) {
+        TU_ASSERT(xfer_len && len);
+        _gud_itf.offset = 0;
+        _gud_itf.buf = buf;
+        _gud_itf.len = len;
+        _gud_itf.xfer_len = xfer_len;
+    } else {
+        _gud_itf.offset += GUD_EDPT_XFER_MAX_SIZE;
+        buf = _gud_itf.buf + _gud_itf.offset;
+        xfer_len = _gud_itf.xfer_len - _gud_itf.offset;
+    }
+
+    if (xfer_len > GUD_EDPT_XFER_MAX_SIZE)
+        xfer_len = GUD_EDPT_XFER_MAX_SIZE;
+
+    return usbd_edpt_xfer(rhport, _gud_itf.ep_out, buf, xfer_len);
+}
+
 static bool gud_driver_control_complete(uint8_t rhport, tusb_control_request_t const * req)
 {
     uint16_t wLength;
@@ -128,22 +154,17 @@ static bool gud_driver_control_complete(uint8_t rhport, tusb_control_request_t c
         if (req->bRequest == GUD_REQ_SET_BUFFER) {
             const struct gud_set_buffer_req *buf_req = (const struct gud_set_buffer_req *)_ctrl_req_buf;
             uint32_t len;
-            int ret;
+            void *buf;
 
             if (buf_req->compression) {
-                _bulk_dst = _compress_buf;
+                buf = _compress_buf;
                 len = buf_req->compressed_length;
             } else {
-                _bulk_dst = _framebuffer;
+                buf = _framebuffer;
                 len = buf_req->length;
             }
 
-            _gud_itf.len = buf_req->length;
-            _gud_itf.xfer_len = len;
-
-            TU_ASSERT(!usbd_edpt_busy(rhport, _gud_itf.ep_out));
-
-            return usbd_edpt_xfer(rhport, _gud_itf.ep_out, _bulk_dst, len);
+            return gud_driver_bulk_xfer(rhport, buf, len, buf_req->length);
         }
 
         if (req->bRequest == GUD_REQ_SET_STATE_CHECK && _display->flags & GUD_DISPLAY_FLAG_FULL_UPDATE) {
@@ -156,10 +177,7 @@ static bool gud_driver_control_complete(uint8_t rhport, tusb_control_request_t c
                     return false;
                 }
 
-                _gud_itf.len = len;
-                _gud_itf.xfer_len = len;
-
-                return usbd_edpt_xfer(rhport, _gud_itf.ep_out, _framebuffer, len);
+                return gud_driver_bulk_xfer(rhport, _framebuffer, len, len);
             }
         }
     }
@@ -171,28 +189,31 @@ static bool gud_driver_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t re
 {
     TU_VERIFY(result == XFER_RESULT_SUCCESS);
 
-    if (xferred_bytes == _gud_itf.xfer_len) {
-        if (_bulk_dst == _compress_buf) {
+    if (xferred_bytes != (_gud_itf.xfer_len - _gud_itf.offset)) {
+        if (xferred_bytes != GUD_EDPT_XFER_MAX_SIZE) {
+            GUD_DRV_LOG1("%s: UNHANDLED: xferred_bytes=%u != _gud_itf.xfer_len=%u\n",
+                         __func__, xferred_bytes, _gud_itf.xfer_len);
+            return false;
+        }
+        return gud_driver_bulk_xfer(rhport, NULL, 0, 0);
+    }
 
-            //uint64_t start = time_us_64();
+    if (_gud_itf.xfer_len != _gud_itf.len) {
+        //uint64_t start = time_us_64();
 
-            int ret = LZ4_decompress_safe(_bulk_dst, _framebuffer, _gud_itf.xfer_len, _gud_itf.len);
-            if (ret < 0) {
-                GUD_DRV_LOG1("LZ4_decompress_safe failed: xfer_len=%u len=%u\n", _gud_itf.xfer_len, _gud_itf.len);
-                return false;
-            }
-
-            //printf("%llu\n", time_us_64() - start);
+        int ret = LZ4_decompress_safe(_gud_itf.buf, _framebuffer, _gud_itf.xfer_len, _gud_itf.len);
+        if (ret < 0) {
+            GUD_DRV_LOG1("LZ4_decompress_safe failed: xfer_len=%u len=%u\n", _gud_itf.xfer_len, _gud_itf.len);
+            return false;
         }
 
-        gud_write_buffer(_display, _framebuffer);
-
-        if (_display->flags & GUD_DISPLAY_FLAG_FULL_UPDATE)
-            return usbd_edpt_xfer(rhport, _gud_itf.ep_out, _framebuffer, _gud_itf.xfer_len);
-
-    } else {
-        GUD_DRV_LOG1("%s: UNHANDLED: xferred_bytes=%u != _gud_itf.xfer_len=%u\n", __func__, xferred_bytes, _gud_itf.xfer_len);
+        //printf("%llu\n", time_us_64() - start);
     }
+
+    gud_write_buffer(_display, _framebuffer);
+
+    if (_display->flags & GUD_DISPLAY_FLAG_FULL_UPDATE)
+        return gud_driver_bulk_xfer(rhport, _framebuffer, _gud_itf.xfer_len, _gud_itf.xfer_len);
 
     return true;
 }
