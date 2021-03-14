@@ -25,7 +25,6 @@ typedef struct
     uint8_t *buf;
     uint32_t xfer_len;
     uint32_t len;
-    uint32_t total_len;
     uint32_t offset;
 } gud_interface_t;
 
