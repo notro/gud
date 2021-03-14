@@ -45,6 +45,7 @@ static int gud_req_get_descriptor(const struct gud_display *disp, void *data, si
 	desc.max_buffer_size = 0;
 	desc.flags = disp->flags;
 	desc.compression = disp->compression;
+	desc.max_buffer_size = disp->max_buffer_size;
 
 	desc.min_width = disp->width;
 	desc.max_width = disp->width;

@@ -83,6 +83,9 @@ void mipi_dbi_set_window(const struct mipi_dbi *dbi,
                          uint16_t width, uint16_t height);
 void mipi_dbi_update16(const struct mipi_dbi *dbi, uint16_t x, uint16_t y,
                        uint16_t width, uint16_t height, void *buf, size_t len);
+void mipi_dbi_update_wait(const struct mipi_dbi *dbi);
+
+void mipi_dbi_hw_reset(uint gpio);
 
 
 #endif

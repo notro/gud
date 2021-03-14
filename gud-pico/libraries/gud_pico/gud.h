@@ -355,6 +355,7 @@ struct gud_display {
 
 	uint32_t flags;
 	uint8_t compression;
+	uint32_t max_buffer_size;
 
 	const uint8_t *formats;
 	uint8_t num_formats;

@@ -4,7 +4,7 @@ set(TINYUSB_DEBUG_LEVEL 2)
 
 include(pico_sdk_import.cmake)
 
-project(pico_display_project)
+project(gud_pico_display_project)
 
 pico_sdk_init()
 

@@ -81,9 +81,6 @@ static void mipi_dbi_update16_dma(const struct mipi_dbi *dbi, uint16_t x, uint16
         dma_channels[idx] = dma_channel;
     }
 
-    if (dma_channel_is_busy(dma_channel))
-        DBI_LOG("Waiting for DMA to finish\n");
-
     dma_channel_wait_for_finish_blocking(dma_channel);
 
     mipi_dbi_set_window(dbi, x, y, width, height);
@@ -141,6 +138,20 @@ void mipi_dbi_update16(const struct mipi_dbi *dbi, uint16_t x, uint16_t y,
     gpio_put(dbi->cs, 1);
 }
 
+void mipi_dbi_update_wait(const struct mipi_dbi *dbi)
+{
+    if (USE_DMA) {
+        uint idx = spi_get_index(dbi->spi);
+        uint dma_channel = dma_channels[idx];
+
+        if (dma_channel != ~0) {
+            if (dma_channel_is_busy(dma_channel))
+                DBI_LOG("Waiting for DMA to finish\n");
+            dma_channel_wait_for_finish_blocking(dma_channel);
+        }
+    }
+}
+
 void mipi_dbi_spi_init(const struct mipi_dbi *dbi)
 {
     spi_init(dbi->spi, dbi->baudrate);
@@ -153,4 +164,17 @@ void mipi_dbi_spi_init(const struct mipi_dbi *dbi)
 
     gpio_set_function(dbi->dc, GPIO_FUNC_SIO);
     gpio_set_dir(dbi->dc, GPIO_OUT);
+}
+
+void mipi_dbi_hw_reset(uint gpio)
+{
+    // init pin if not already done by the caller
+    if (gpio_get_function(gpio) != GPIO_FUNC_SIO) {
+        gpio_set_function(gpio, GPIO_FUNC_SIO);
+        gpio_set_dir(gpio, GPIO_OUT);
+    }
+    gpio_put(gpio, 0);
+    sleep_us(20);
+    gpio_put(gpio, 1);
+    sleep_ms(120);
 }

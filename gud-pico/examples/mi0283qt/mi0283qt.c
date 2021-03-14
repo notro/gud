@@ -26,23 +26,50 @@
  */
 #define LED_ACTION  1
 
-#define BL_GPIO 20
-#define BL_DEF_LEVEL 100
+/*
+ * Pins are mapped for the Watterott RPi-Display on a Pico HAT Expansion board:
+ * https://shop.sb-components.co.uk/products/raspberry-pi-pico-hat-expansion
+ *
+ * Pi           Pico    Function
+ * -----------------------------
+ * GPIO11       GP2     SPI CLK
+ * GPIO10       GP3     SPI MOSI
+ * GPIO9        GP4     SPI MISO
+ * GPIO8        GP5     SPI CE0 - MI0283QT
+ * GPIO7        GP19    SPI CE1 - ADS7846
+ * GPIO23       GP27    MI0283QT /reset
+ * GPIO24       GP26    MI0283QT D/C
+ * GPIO18       GP28    MI0283QT backlight
+ * GPIO25       GP22    ADS7846 /PENIRQ
+ *
+ *
+ * The Adafruit PiTFT 2.8" should also work (not tested):
+ * - Doesn't have a reset pin
+ * - MISO is not connected to the display controller
+ * - STMPE610 touch controller, also used to control backlight (no pwm)
+ *
+ * GPIO25       D/C
+ * GPIO24       STMPE610 INT
+ */
 
-#define WIDTH   240
-#define HEIGHT  135
+#define BL_GPIO         28
+#define BL_DEF_LEVEL    100
 
+#define RESET_GPIO      27
+
+#define WIDTH   320
+#define HEIGHT  240
+
+// There's not room for to full buffers so max_buffer_size must be set
 uint16_t framebuffer[WIDTH * HEIGHT];
-uint16_t compress_buf[WIDTH * HEIGHT];
-
-uint16_t buffer_test[WIDTH * HEIGHT];
+uint8_t compress_buf[88 * 1024];
 
 static const struct mipi_dbi dbi = {
     .spi = spi0,
-    .sck = 18,
-    .mosi = 19,
-    .cs = 17,
-    .dc = 16,
+    .sck = 2,
+    .mosi = 3,
+    .cs = 5,
+    .dc = 26,
     .baudrate = 64 * 1024 * 1024, // 64MHz
 };
 
@@ -117,6 +144,7 @@ static int set_buffer(const struct gud_display *disp, const struct gud_set_buffe
     LOG3("%s: x=%u y=%u width=%u height=%u length=%u compression=0x%x\n", __func__,
          set_buf->x, set_buf->y, set_buf->width, set_buf->height, set_buf->length, set_buf->compression);
 
+    // Wait for SPI transfer to finish so we don't clobber the buffer
     mipi_dbi_update_wait(&dbi);
 
     if (LED_ACTION == 1)
@@ -127,43 +155,6 @@ static int set_buffer(const struct gud_display *disp, const struct gud_set_buffe
     return 0;
 }
 
-static size_t r1_to_rgb565(uint16_t *dst, uint8_t *src, uint16_t src_width, uint16_t src_height)
-{
-    uint8_t val = 0;
-    size_t len = 0;
-
-    for (uint16_t y = 0; y < src_height; y++) {
-        for (uint16_t x = 0; x < src_width; x++) {
-            if (!(x % 8))
-                val = *src++;
-            *dst++ = val & 0x80 ? 0xffffffff : 0;
-            len += sizeof(*dst);
-            val <<= 1;
-        }
-   }
-
-   return len;
-}
-
-static size_t rgb111_to_rgb565(uint16_t *dst, uint8_t *src, uint16_t src_width, uint16_t src_height)
-{
-    uint8_t rgb111, val = 0;
-    size_t len = 0;
-
-    for (uint16_t y = 0; y < src_height; y++) {
-        for (uint16_t x = 0; x < src_width; x++) {
-            if (!(x % 2))
-                val = *src++;
-            rgb111 = val >> 4;
-            *dst++ = ((rgb111 & 0x04) << 13) | ((rgb111 & 0x02) << 9) | ((rgb111 & 0x01) << 4);
-            len += sizeof(*dst);
-            val <<= 4;
-        }
-    }
-
-   return len;
-}
-
 static void write_buffer(const struct gud_display *disp, const struct gud_set_buffer_req *set_buf, void *buf)
 {
     uint32_t length = set_buf->length;
@@ -171,15 +162,7 @@ static void write_buffer(const struct gud_display *disp, const struct gud_set_bu
     LOG2("%s: x=%u y=%u width=%u height=%u length=%u compression=0x%x\n", __func__,
          set_buf->x, set_buf->y, set_buf->width, set_buf->height, set_buf->length, set_buf->compression);
 
-    if (disp->formats[0] == GUD_PIXEL_FORMAT_R1) {
-        length = r1_to_rgb565(buffer_test, buf, set_buf->width, set_buf->height);
-        buf = buffer_test;
-    } else if (disp->formats[0] == GUD_PIXEL_FORMAT_XRGB1111) {
-        length = rgb111_to_rgb565(buffer_test, buf, set_buf->width, set_buf->height);
-        buf = buffer_test;
-    }
-
-    mipi_dbi_update16(&dbi, set_buf->x + 40, set_buf->y + 53, set_buf->width, set_buf->height, buf, length);
+    mipi_dbi_update16(&dbi, set_buf->x, set_buf->y, set_buf->width, set_buf->height, buf, length);
 
     if (LED_ACTION == 1)
         board_led_write(true);
@@ -188,8 +171,6 @@ static void write_buffer(const struct gud_display *disp, const struct gud_set_bu
 }
 
 static const uint8_t pixel_formats[] = {
-//    GUD_PIXEL_FORMAT_R1,
-//    GUD_PIXEL_FORMAT_XRGB1111,
     GUD_PIXEL_FORMAT_RGB565,
 };
 
@@ -209,12 +190,12 @@ static uint32_t gud_display_edid_get_serial_number(void)
 }
 
 static const struct gud_display_edid edid = {
-    .name = "pico display",
-    .pnp = "PIM",
+    .name = "RPi-Display",
+    .pnp = "WAT",
     .product_code = 0x01,
     .year = 2021,
-    .width_mm = 27,
-    .height_mm = 16,
+    .width_mm = 58,
+    .height_mm = 43,
 
     .get_serial_number = gud_display_edid_get_serial_number,
 };
@@ -226,6 +207,7 @@ const struct gud_display display = {
 //    .flags = GUD_DISPLAY_FLAG_FULL_UPDATE,
 
     .compression = GUD_COMPRESSION_LZ4,
+    .max_buffer_size = sizeof(compress_buf),
 
     .formats = pixel_formats,
     .num_formats = 1,
@@ -244,26 +226,110 @@ const struct gud_display display = {
     .write_buffer = write_buffer,
 };
 
+#define ILI9341_FRMCTR1         0xb1
+#define ILI9341_DISCTRL         0xb6
+#define ILI9341_ETMOD           0xb7
+
+#define ILI9341_PWCTRL1         0xc0
+#define ILI9341_PWCTRL2         0xc1
+#define ILI9341_VMCTRL1         0xc5
+#define ILI9341_VMCTRL2         0xc7
+#define ILI9341_PWCTRLA         0xcb
+#define ILI9341_PWCTRLB         0xcf
+
+#define ILI9341_PGAMCTRL        0xe0
+#define ILI9341_NGAMCTRL        0xe1
+#define ILI9341_DTCTRLA         0xe8
+#define ILI9341_DTCTRLB         0xea
+#define ILI9341_PWRSEQ          0xed
+
+#define ILI9341_EN3GAM          0xf2
+#define ILI9341_PUMPCTRL        0xf7
+
+#define ILI9341_MADCTL_BGR      BIT(3)
+#define ILI9341_MADCTL_MV       BIT(5)
+#define ILI9341_MADCTL_MX       BIT(6)
+#define ILI9341_MADCTL_MY       BIT(7)
+
 static void init_display(void)
 {
     backlight_init(BL_GPIO);
     mipi_dbi_spi_init(&dbi);
 
+    if (RESET_GPIO >= 0)
+        mipi_dbi_hw_reset(RESET_GPIO);
+
     mipi_dbi_command(&dbi, MIPI_DCS_SOFT_RESET);
 
-    sleep_ms(150);
+    sleep_ms(150); // ????
 
-    mipi_dbi_command(&dbi, MIPI_DCS_SET_ADDRESS_MODE, 0x70);
+    mipi_dbi_command(&dbi, MIPI_DCS_SET_DISPLAY_OFF);
+
+    mipi_dbi_command(&dbi, ILI9341_PWCTRLB, 0x00, 0x83, 0x30);
+    mipi_dbi_command(&dbi, ILI9341_PWRSEQ, 0x64, 0x03, 0x12, 0x81);
+    mipi_dbi_command(&dbi, ILI9341_DTCTRLA, 0x85, 0x01, 0x79);
+    mipi_dbi_command(&dbi, ILI9341_PWCTRLA, 0x39, 0x2c, 0x00, 0x34, 0x02);
+    mipi_dbi_command(&dbi, ILI9341_PUMPCTRL, 0x20);
+    mipi_dbi_command(&dbi, ILI9341_DTCTRLB, 0x00, 0x00);
+
+    /* Power Control */
+    mipi_dbi_command(&dbi, ILI9341_PWCTRL1, 0x26);
+    mipi_dbi_command(&dbi, ILI9341_PWCTRL2, 0x11);
+    /* VCOM */
+    mipi_dbi_command(&dbi, ILI9341_VMCTRL1, 0x35, 0x3e);
+    mipi_dbi_command(&dbi, ILI9341_VMCTRL2, 0xbe);
+
+    /* Memory Access Control */
     mipi_dbi_command(&dbi, MIPI_DCS_SET_PIXEL_FORMAT, MIPI_DCS_PIXEL_FORMAT_16BIT);
 
-    mipi_dbi_command(&dbi, MIPI_DCS_ENTER_INVERT_MODE);
-    mipi_dbi_command(&dbi, MIPI_DCS_EXIT_SLEEP_MODE);
-    mipi_dbi_command(&dbi, MIPI_DCS_SET_DISPLAY_ON);
+    /* Frame Rate */
+    mipi_dbi_command(&dbi, ILI9341_FRMCTR1, 0x00, 0x1b);
 
+    /* Gamma */
+    mipi_dbi_command(&dbi, ILI9341_EN3GAM, 0x08);
+    mipi_dbi_command(&dbi, MIPI_DCS_SET_GAMMA_CURVE, 0x01);
+    mipi_dbi_command(&dbi, ILI9341_PGAMCTRL,
+                     0x1f, 0x1a, 0x18, 0x0a, 0x0f, 0x06, 0x45, 0x87,
+                     0x32, 0x0a, 0x07, 0x02, 0x07, 0x05, 0x00);
+    mipi_dbi_command(&dbi, ILI9341_NGAMCTRL,
+                     0x00, 0x25, 0x27, 0x05, 0x10, 0x09, 0x3a, 0x78,
+                     0x4d, 0x05, 0x18, 0x0d, 0x38, 0x3a, 0x1f);
+
+    /* DDRAM */
+    mipi_dbi_command(&dbi, ILI9341_ETMOD, 0x07);
+
+    /* Display */
+    mipi_dbi_command(&dbi, ILI9341_DISCTRL, 0x0a, 0x82, 0x27, 0x00);
+    mipi_dbi_command(&dbi, MIPI_DCS_EXIT_SLEEP_MODE);
+    sleep_ms(100);
+
+    uint16_t rotation = 180;
+    uint8_t addr_mode;
+
+    switch (rotation) {
+    default:
+        addr_mode = ILI9341_MADCTL_MV | ILI9341_MADCTL_MY |
+                ILI9341_MADCTL_MX;
+        break;
+    case 90:
+        addr_mode = ILI9341_MADCTL_MY;
+        break;
+    case 180:
+        addr_mode = ILI9341_MADCTL_MV;
+        break;
+    case 270:
+        addr_mode = ILI9341_MADCTL_MX;
+        break;
+    }
+    addr_mode |= ILI9341_MADCTL_BGR;
+    mipi_dbi_command(&dbi, MIPI_DCS_SET_ADDRESS_MODE, addr_mode);
+
+
+    mipi_dbi_command(&dbi, MIPI_DCS_SET_DISPLAY_ON);
     sleep_ms(100);
 
     // Clear display
-    mipi_dbi_update16(&dbi, 40, 53, WIDTH, HEIGHT, framebuffer, WIDTH * HEIGHT * 2);
+    mipi_dbi_update16(&dbi, 0, 0, WIDTH, HEIGHT, framebuffer, WIDTH * HEIGHT * 2);
 }
 
 static void pwm_gpio_init(uint gpio, uint16_t val)
@@ -289,6 +355,11 @@ int main(void)
 
     if (LED_ACTION)
         board_led_write(true);
+
+    // Pull ADS7846 CE1 high
+    gpio_set_function(19, GPIO_FUNC_SIO);
+    gpio_set_dir(19, GPIO_OUT);
+    gpio_put(19, 1);
 
     init_display();
 
