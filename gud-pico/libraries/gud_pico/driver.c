@@ -11,6 +11,8 @@
 #define GUD_DRV_LOG1
 #define GUD_DRV_LOG2
 
+#define GUD_DRV_FLUSH_STATS     0
+
 #define GUD_CTRL_REQ_BUF_SIZE   128 // Fits EDID
 // Max usbd_edpt_xfer() xfer size is uint16_t, align to endpoint size
 #define GUD_EDPT_XFER_MAX_SIZE  (0xffff - (0xffff % CFG_GUD_BULK_OUT_SIZE))
@@ -36,6 +38,51 @@ uint8_t *_compress_buf;
 
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t _ctrl_req_buf[GUD_CTRL_REQ_BUF_SIZE];
 CFG_TUSB_MEM_SECTION CFG_TUSB_MEM_ALIGN static uint8_t status;
+
+#if GUD_DRV_FLUSH_STATS
+typedef struct
+{
+    uint64_t ctrl_start;
+    uint64_t bulk_start;
+    uint64_t bulk_end;
+    uint64_t decompress_end;
+    uint64_t write_end;
+} gud_driver_flush_stat_t;
+
+gud_driver_flush_stat_t _flush_stat;
+
+#define gud_driver_flush_stat_set(m)    _flush_stat.m = time_us_64();
+
+static void gud_driver_flush_stat_start()
+{
+    memset(&_flush_stat, 0, sizeof(_flush_stat));
+    gud_driver_flush_stat_set(ctrl_start);
+}
+
+static void gud_driver_flush_stat_print()
+{
+    uint64_t write_begin = _flush_stat.bulk_end;
+
+    printf("C:%llu + B:%llu",
+           _flush_stat.bulk_start - _flush_stat.ctrl_start,
+           _flush_stat.bulk_end - _flush_stat.bulk_start);
+
+    if (_flush_stat.decompress_end) {
+        printf(" + D:%llu", _flush_stat.decompress_end - _flush_stat.bulk_end);
+        write_begin = _flush_stat.decompress_end;
+    }
+
+    printf(" = %llu + W:%llu = %llu us\n",
+           write_begin - _flush_stat.ctrl_start,
+           _flush_stat.write_end - write_begin,
+           _flush_stat.write_end - _flush_stat.ctrl_start);
+}
+
+#else
+#define gud_driver_flush_stat_set(m)
+static void gud_driver_flush_stat_start() {}
+static void gud_driver_flush_stat_print() {}
+#endif
 
 static void gud_driver_init(void)
 {
@@ -105,6 +152,9 @@ static bool gud_driver_control_request(uint8_t rhport, tusb_control_request_t co
             }
         }
 
+        if (req->bRequest == GUD_REQ_SET_BUFFER)
+            gud_driver_flush_stat_start();
+
         return tud_control_xfer(rhport, req, _ctrl_req_buf, wLength);
     }
 
@@ -163,6 +213,8 @@ static bool gud_driver_control_complete(uint8_t rhport, tusb_control_request_t c
                 len = buf_req->length;
             }
 
+            gud_driver_flush_stat_set(bulk_start);
+
             return gud_driver_bulk_xfer(rhport, buf, len, buf_req->length);
         }
 
@@ -197,19 +249,22 @@ static bool gud_driver_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t re
         return gud_driver_bulk_xfer(rhport, NULL, 0, 0);
     }
 
-    if (_gud_itf.xfer_len != _gud_itf.len) {
-        //uint64_t start = time_us_64();
+    gud_driver_flush_stat_set(bulk_end);
 
+    if (_gud_itf.xfer_len != _gud_itf.len) {
         int ret = LZ4_decompress_safe(_gud_itf.buf, _framebuffer, _gud_itf.xfer_len, _gud_itf.len);
         if (ret < 0) {
             GUD_DRV_LOG1("LZ4_decompress_safe failed: xfer_len=%u len=%u\n", _gud_itf.xfer_len, _gud_itf.len);
             return false;
         }
 
-        //printf("%llu\n", time_us_64() - start);
+        gud_driver_flush_stat_set(decompress_end);
     }
 
     gud_write_buffer(_display, _framebuffer);
+
+    gud_driver_flush_stat_set(write_end);
+    gud_driver_flush_stat_print();
 
     if (_display->flags & GUD_DISPLAY_FLAG_FULL_UPDATE)
         return gud_driver_bulk_xfer(rhport, _framebuffer, _gud_itf.xfer_len, _gud_itf.xfer_len);
