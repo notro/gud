@@ -1,0 +1,3 @@
+# CONFIG_BB_SYSCTL is not set
+# CONFIG_SYSLOGD is not set
+# CONFIG_KLOGD is not set

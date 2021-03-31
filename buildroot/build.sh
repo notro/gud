@@ -25,6 +25,12 @@ info()
 	echo "$(tput smso 2>/dev/null)>> ${msg}$(tput rmso 2>/dev/null)"
 }
 
+error()
+{
+	echo "ERROR: $1" > /dev/stderr
+	exit 1
+}
+
 buildroot_source()
 {
 	if [[ ! -e ${BUILDROOT_SRC_DIR} ]]; then
@@ -78,11 +84,52 @@ make_target()
 	(cd "build-$1" && SSH_KEY_DIR=${KEY_DIR} make $2)
 }
 
-release()
+set_linux_defconfig()
 {
+	local board=$1
+	local defconfig=$2
+
+	BR2_CONFIG="build-${board}/.config"
+
+	key=BR2_LINUX_KERNEL_CUSTOM_CONFIG_FILE
+	val="\$(BR2_EXTERNAL_GUD_PATH)/board/${board}/${defconfig}"
+
+	# delete the line containing the old value and append the new
+	sed -i "/$key=/d" "${BR2_CONFIG}"
+	echo "${key}=\"${val}\"" >> "${BR2_CONFIG}"
+}
+
+make_linux_defconfig()
+{
+	local board=$1
+	local defconfig=$2
+	local kernel_name
+
+	case $defconfig in
+		gud_bcmrpi_defconfig )
+			kernel_name="kernel.img"
+			;;
+		gud_bcm2711_defconfig )
+			kernel_name="kernel7l.img"
+			;;
+		* )
+			error "Unknown linux defconfig: ${defconfig}"
+	esac
+
+	info "LINUX: ${defconfig} - ${kernel_name}"
+	set_linux_defconfig "${board}" "${defconfig}"
+	make_target "${board}" "linux-reconfigure"
+	make_target "${board}" "rootfs-initramfs"
+	(cd "build-${board}/images/" && mv "zImage" "${kernel_name}")
+}
+
+release_zip()
+{
+	info "release $1"
+
 	img="build-$1/images/sdcard.img"
 
-	if [ ! -e ${img} ]; then
+	if [[ ! -e ${img} ]]; then
 		echo "File missing: ${img}"
 		exit 1
 	fi
@@ -98,6 +145,33 @@ release()
 	echo "${fn}.zip:"
 	rm -f "${fn}.zip"
 	zip "${fn}.zip" "${fn}.img"
+}
+
+release()
+{
+	if [[ ! -e "build-$1/images/sdcard.img" ]]; then
+		configure $1
+		make_target $1
+	fi
+	release_zip $1
+}
+
+pi_release()
+{
+	local board=$1
+
+	if [[ -e "build-${board}/images/sdcard.img" ]]; then
+		error "Needs a clean build directory"
+	fi
+
+	configure "${board}"
+
+	make_linux_defconfig "${board}" "gud_bcmrpi_defconfig"
+	make_linux_defconfig "${board}" "gud_bcm2711_defconfig"
+
+	info "BUILD: the rest"
+	make_target "${board}"
+	release_zip "${board}"
 }
 
 usage()
@@ -129,12 +203,18 @@ if [[ $# -eq 1 ]]; then
 	target=""
 elif [[ $# -eq 2 ]]; then
 	target=$2
+elif [[ $# -eq 3 && "$2" == "linux" ]]; then
+	target=$2
+	defconfig=$3
 else
 	usage
 	exit 1
 fi
 
 case $1 in
+	pi-lite )
+		board=raspberrypi-lite
+		;;
 	pi0 )
 		board=raspberrypi0
 		;;
@@ -142,7 +222,7 @@ case $1 in
 		board=raspberrypi4
 		;;
 	* )
-		echo "Supported boards are: pi0 pi4"
+		echo "Supported boards are: pi-lite pi0 pi4"
 		exit 1
 esac
 
@@ -158,14 +238,18 @@ case $target in
 			echo "GUD_VERSION is not set"
 			exit 1
 		fi
-		if [ ! -e "build-${board}/images/sdcard.img" ]; then
-			configure ${board}
-			make_target ${board}
+		if [[ "${board}" == "raspberrypi-lite" ]]; then
+			pi_release ${board}
+		else
+			release ${board}
 		fi
-		release ${board}
 		;;
 	* )
 		configure ${board}
-		make_target ${board} ${target}
+		if [[ -n "${defconfig}" ]]; then
+			make_linux_defconfig ${board} ${defconfig}
+		else
+			make_target ${board} ${target}
+		fi
 		;;
 esac
