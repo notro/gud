@@ -62,7 +62,7 @@
 
 // There's not room for to full buffers so max_buffer_size must be set
 uint16_t framebuffer[WIDTH * HEIGHT];
-uint8_t compress_buf[88 * 1024];
+uint16_t compress_buf[WIDTH * 120];
 
 static const struct mipi_dbi dbi = {
     .spi = spi0,
