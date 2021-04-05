@@ -35,6 +35,11 @@ buildroot_source()
 
 		info "unpacking ${BUILDROOT_SRC_FILE}"
 		tar xf ${BUILDROOT_SRC_FILE}
+
+		info "patching ${BUILDROOT_SRC_DIR}"
+		info "  Bump RPI_FIRMWARE_VERSION"
+		sed -i s/358f4c271f2bc10931aae8fe0879ffaded8b9c44/20081d8e86119e95e516526700be62049850c01a/ ${BUILDROOT_SRC_DIR}/package/rpi-firmware/rpi-firmware.mk
+		rm ${BUILDROOT_SRC_DIR}/package/rpi-firmware/rpi-firmware.hash
 	fi
 }
 
