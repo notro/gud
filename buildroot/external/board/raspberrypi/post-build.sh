@@ -16,7 +16,7 @@ debugfs		/sys/kernel/debug	debugfs	defaults	0	0
 /dev/mmcblk0p1	/boot		vfat	defaults,ro	0	2
 __EOF__
 
-if [ -n "${GUD_VERSION}" ]; then
+if [ -n "${GUD_VERSION:-}" ]; then
     major=$(echo "${GUD_VERSION}" | cut -d. -f1)
     minor=$(echo "${GUD_VERSION}" | cut -d. -f2)
     [ ${#minor} -eq 1 ] && minor=$((${minor}*10))

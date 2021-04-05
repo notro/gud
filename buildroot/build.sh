@@ -149,15 +149,6 @@ release_zip()
 
 release()
 {
-	if [[ ! -e "build-$1/images/sdcard.img" ]]; then
-		configure $1
-		make_target $1
-	fi
-	release_zip $1
-}
-
-pi_release()
-{
 	local board=$1
 
 	if [[ -e "build-${board}/images/sdcard.img" ]]; then
@@ -215,14 +206,11 @@ case $1 in
 	pi-lite )
 		board=raspberrypi-lite
 		;;
-	pi0 )
-		board=raspberrypi0
-		;;
-	pi4 )
-		board=raspberrypi4
+	pi )
+		board=raspberrypi
 		;;
 	* )
-		echo "Supported boards are: pi-lite pi0 pi4"
+		echo "Supported boards are: pi-lite pi"
 		exit 1
 esac
 
@@ -238,11 +226,7 @@ case $target in
 			echo "GUD_VERSION is not set"
 			exit 1
 		fi
-		if [[ "${board}" == "raspberrypi-lite" ]]; then
-			pi_release ${board}
-		else
-			release ${board}
-		fi
+		release ${board}
 		;;
 	* )
 		configure ${board}
