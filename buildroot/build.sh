@@ -2,7 +2,7 @@
 
 set -e
 
-BUILDROOT_VERSION="2020.11.3"
+BUILDROOT_VERSION="2021.02.1"
 
 if [[ -z ${BR2_DL_DIR} ]]; then
 	DL_DIR="$(pwd)/downloads"
@@ -42,9 +42,8 @@ buildroot_source()
 		info "unpacking ${BUILDROOT_SRC_FILE}"
 		tar xf ${BUILDROOT_SRC_FILE}
 
-		info "patching ${BUILDROOT_SRC_DIR}"
-		info "  Bump RPI_FIRMWARE_VERSION"
-		sed -i s/358f4c271f2bc10931aae8fe0879ffaded8b9c44/20081d8e86119e95e516526700be62049850c01a/ ${BUILDROOT_SRC_DIR}/package/rpi-firmware/rpi-firmware.mk
+		info "Bump RPI_FIRMWARE_VERSION"
+		sed -i s/d016a6eb01c8c7326a89cb42809fed2a21525de5/20081d8e86119e95e516526700be62049850c01a/ ${BUILDROOT_SRC_DIR}/package/rpi-firmware/rpi-firmware.mk
 		rm ${BUILDROOT_SRC_DIR}/package/rpi-firmware/rpi-firmware.hash
 	fi
 }
