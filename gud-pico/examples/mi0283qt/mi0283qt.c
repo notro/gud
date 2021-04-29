@@ -332,23 +332,6 @@ static void init_display(void)
     mipi_dbi_update16(&dbi, 0, 0, WIDTH, HEIGHT, framebuffer, WIDTH * HEIGHT * 2);
 }
 
-static void pwm_gpio_init(uint gpio, uint16_t val)
-{
-    pwm_config cfg = pwm_get_default_config();
-    pwm_config_set_output_polarity(&cfg, true, true);
-    pwm_set_wrap(pwm_gpio_to_slice_num(gpio), 65535);
-    pwm_init(pwm_gpio_to_slice_num(gpio), &cfg, true);
-    gpio_set_function(gpio, GPIO_FUNC_PWM);
-    pwm_set_gpio_level(gpio, val);
-}
-
-static void turn_off_rgb_led(void)
-{
-    pwm_gpio_init(6, 0);
-    pwm_gpio_init(7, 0);
-    pwm_gpio_init(8, 0);
-}
-
 int main(void)
 {
     board_init();
@@ -368,8 +351,6 @@ int main(void)
     tusb_init();
 
     LOG("\n\n%s: CFG_TUSB_DEBUG=%d\n", __func__, CFG_TUSB_DEBUG);
-
-    turn_off_rgb_led();
 
     while (1)
     {
