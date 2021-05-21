@@ -1,0 +1,63 @@
+#!/bin/sh
+
+# USB Display Gadget
+
+. /etc/os-release
+
+PRODUCT="ROCK Pi 4 USB Display Gadget"
+MAXPOWER=120 # mA
+
+UDC=$(ls /sys/class/udc | cut -f1 | grep -v usbip | head -n1)
+
+start() {
+	cd /sys/kernel/config/usb_gadget
+	mkdir g1
+	cd g1
+
+	echo 0x1d50 > idVendor
+	echo 0x614d > idProduct
+
+	if [ -n "$GUD_VERSION_BCD" ]; then
+		echo "$GUD_VERSION_BCD" > bcdDevice
+	fi
+
+	mkdir strings/0x409
+	echo "$PRODUCT" > strings/0x409/product
+	echo "$SN" > strings/0x409/serialnumber
+
+	mkdir configs/c.1
+	echo "$MAXPOWER" > configs/c.1/MaxPower
+
+	mkdir functions/gud.0
+	echo 0 > functions/gud.0/drm_dev
+	ln -s functions/gud.0/ configs/c.1/
+
+	echo "$UDC" > UDC
+}
+
+stop() {
+	cd /sys/kernel/config/usb_gadget
+	if [ -d "g1" ]; then
+		cd g1
+		echo > UDC 2> /dev/null
+		find configs/c.1/ -maxdepth 1 -type l -exec rm -f {} +
+		rmdir configs/c.1
+		[ -e functions/gud.0 ] && rmdir functions/gud.0
+
+		rmdir strings/0x409
+		cd ..
+		rmdir g1
+	fi
+}
+
+case "$1" in
+  start)
+	start;;
+  stop)
+	stop;;
+  *)
+	echo "Usage: $0 {start|stop}"
+	exit 1
+esac
+
+exit $?

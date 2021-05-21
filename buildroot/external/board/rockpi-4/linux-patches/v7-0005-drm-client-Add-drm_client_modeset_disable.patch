@@ -1,0 +1,59 @@
+From 1d718036b884d1054a9ab63f463dcab62a4aea74 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
+Date: Wed, 6 May 2020 19:09:05 +0200
+Subject: [PATCH v7 05/11] drm/client: Add drm_client_modeset_disable()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add a way for clients to disable all outputs.
+
+Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+---
+ drivers/gpu/drm/drm_client_modeset.c | 20 ++++++++++++++++++++
+ include/drm/drm_client.h             |  1 +
+ 2 files changed, 21 insertions(+)
+
+diff --git a/drivers/gpu/drm/drm_client_modeset.c b/drivers/gpu/drm/drm_client_modeset.c
+index b7e9e1c2564c..0ad421a0e669 100644
+--- a/drivers/gpu/drm/drm_client_modeset.c
++++ b/drivers/gpu/drm/drm_client_modeset.c
+@@ -1228,3 +1228,23 @@ int drm_client_modeset_dpms(struct drm_client_dev *client, int mode)
+ 	return ret;
+ }
+ EXPORT_SYMBOL(drm_client_modeset_dpms);
++
++/**
++ * drm_client_modeset_disable() - Disable all outputs
++ * @client: DRM client
++ *
++ * This function disables all outputs by first clearing the modeset array and
++ * then committing the empty modesets.
++ *
++ * Returns:
++ * Zero on success or negative error code on failure.
++ */
++int drm_client_modeset_disable(struct drm_client_dev *client)
++{
++	mutex_lock(&client->modeset_mutex);
++	drm_client_modeset_release(client);
++	mutex_unlock(&client->modeset_mutex);
++
++	return drm_client_modeset_commit(client);
++}
++EXPORT_SYMBOL(drm_client_modeset_disable);
+diff --git a/include/drm/drm_client.h b/include/drm/drm_client.h
+index c190baa09d57..3d3567e4c39e 100644
+--- a/include/drm/drm_client.h
++++ b/include/drm/drm_client.h
+@@ -168,6 +168,7 @@ int drm_client_modeset_check(struct drm_client_dev *client);
+ int drm_client_modeset_commit_locked(struct drm_client_dev *client);
+ int drm_client_modeset_commit(struct drm_client_dev *client);
+ int drm_client_modeset_dpms(struct drm_client_dev *client, int mode);
++int drm_client_modeset_disable(struct drm_client_dev *client);
+ 
+ /**
+  * drm_client_for_each_modeset() - Iterate over client modesets
+-- 
+2.23.0
+

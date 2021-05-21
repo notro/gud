@@ -156,10 +156,12 @@ release()
 
 	configure "${board}"
 
-	make_linux_defconfig "${board}" "gud_bcmrpi_defconfig"
-	make_linux_defconfig "${board}" "gud_bcm2711_defconfig"
+	if [[ "${board}" == "raspberrypi-lite" || "${board}" == "raspberrypi" ]]; then
+		make_linux_defconfig "${board}" "gud_bcmrpi_defconfig"
+		make_linux_defconfig "${board}" "gud_bcm2711_defconfig"
+		info "BUILD: the rest"
+	fi
 
-	info "BUILD: the rest"
 	make_target "${board}"
 	release_zip "${board}"
 }
@@ -208,8 +210,11 @@ case $1 in
 	pi )
 		board=raspberrypi
 		;;
+	rockpi )
+		board=rockpi-4
+		;;
 	* )
-		echo "Supported boards are: pi-lite pi"
+		echo "Supported boards are: pi-lite pi rockpi"
 		exit 1
 esac
 
