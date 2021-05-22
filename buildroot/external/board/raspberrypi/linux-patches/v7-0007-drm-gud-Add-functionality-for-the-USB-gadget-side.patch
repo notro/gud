@@ -638,7 +638,7 @@ index 000000000000..3b6259d06834
 +	if (index || !size)
 +		return -EPROTO;
 +
-+	size = min(size, gdg->format_count);
++	size = min_t(size_t, size, gdg->format_count);
 +	memcpy(data, gdg->formats, size);
 +
 +	return size;
@@ -717,7 +717,7 @@ index 000000000000..3b6259d06834
 +	if (index || !size)
 +		return -EPROTO;
 +
-+	num_connectors = min(size / sizeof(*descs), gdg->connector_count);
++	num_connectors = min_t(size_t, size / sizeof(*descs), gdg->connector_count);
 +
 +	for (i = 0; i < num_connectors; i++)
 +		gud_gadget_req_get_connector(gdg, i, &descs[i]);
@@ -766,7 +766,7 @@ index 000000000000..3b6259d06834
 +	if (!gconn)
 +		return -EINVAL;
 +
-+	size = min(size, gconn->num_tv_mode_enum_names * GUD_CONNECTOR_TV_MODE_NAME_LEN);
++	size = min_t(size_t, size, gconn->num_tv_mode_enum_names * GUD_CONNECTOR_TV_MODE_NAME_LEN);
 +	memcpy(data, gconn->tv_mode_enum_names, size);
 +
 +	return size;
