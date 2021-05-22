@@ -239,6 +239,14 @@ class Device(object):
     def flags(self):
         return self.descriptor.flags
 
+    @property
+    def max_buffer_size(self):
+        # The host driver maxes out at 4MB (kmalloc limit)
+        if self.descriptor.max_buffer_size:
+            return min(self.descriptor.max_buffer_size, 4 * 1024 * 1024)
+        else:
+            return 4 * 1024 * 1024
+
     def status(self):
         return self.req_get_status()
 

@@ -166,7 +166,7 @@ class Image(object):
             height = self.height
 
         lines = width
-        if self.dev.descriptor.max_buffer_size and self.dev.descriptor.max_buffer_size < lines * self.pitch:
+        if self.dev.max_buffer_size < lines * self.pitch:
             lines = self.dev.descriptor.max_buffer_size // self.pitch
 
         t = 0
