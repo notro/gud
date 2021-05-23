@@ -80,8 +80,8 @@ class Image(object):
             buf = bytes(os.urandom(length))
         else:
             if self.cpp == 4:
-                rand_lines = self.height // 2
-                zeroes = self.width * rand_lines * 4
+                rand_lines = self.height // ratio
+                zeroes = self.width * (self.height - rand_lines) * 4
                 xrgb8888 = numpy.random.randint(0, 0xFFFFFF00, (self.width, rand_lines), dtype=numpy.uint32)
                 buf = bytearray(zeroes) + bytearray(xrgb8888)
             else:
