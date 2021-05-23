@@ -64,7 +64,7 @@ def test_all_border(dev, state, speed):
     sleep(2 * speed)
 
 def test_all_grid(dev, state, speed):
-    print('  Grid test:', end='', flush=True)
+    print('  Grid test: ', end='', flush=True)
     if state.format < GUD_PIXEL_FORMAT_XRGB1111:
         colors = ('#000000', )
     else:
@@ -90,6 +90,7 @@ def test_all_grid(dev, state, speed):
             grid.rectangle(x * w, y * w, w, w, fill='#000000')
             grid.rectangle(x * w + dot_off, y * w + dot_off, dot_w, dot_w, fill=colors[x % len(colors)])
             grid.flush(x * w, y * w, w, w)
+            sleep(0.5 * speed)
     print()
 
 def test_one_rotation(dev, state, speed):
@@ -130,6 +131,20 @@ def test_one_margins(dev, state, speed):
         double_border(dev, state, f'ALL = {val}')
         dev.commit(state)
         sleep(1 * speed)
+    print()
+
+def test_one_backlight(dev, state, speed):
+    backlight = [prop for prop in state.connector.properties if prop.prop == GUD_PROPERTY_BACKLIGHT_BRIGHTNESS]
+    if not backlight:
+        return
+    print('  Connector backlight: ', end='', flush=True)
+    for val in list(range(100, -1, -5)) + list(range(0, 101, 5)):
+        img = smpte_image(dev, state.format, state.mode, text=f'Brightness {val}')
+        img.flush()
+        state.connector.set(backlight[0].prop, val)
+        print('.', end='', flush=True)
+        dev.commit(state)
+        sleep(0.1 * speed)
     print()
 
 
