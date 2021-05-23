@@ -4,8 +4,6 @@ GUD test suite
 A collection of tests that can be used to verify that a GUD device behaves as intended.
 The tests disable the host driver and exercises the protocol directly through libusb.
 
-**Note**: No support for formats R1 and XRGB1111 yet.
-
 Dependencies
 ------------
 

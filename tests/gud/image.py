@@ -25,6 +25,8 @@ class Image(object):
             self.cpp = 2
         elif fmt in (GUD_PIXEL_FORMAT_XRGB8888, GUD_PIXEL_FORMAT_ARGB8888):
             self.cpp = 4
+        elif fmt in (GUD_PIXEL_FORMAT_XRGB1111, GUD_PIXEL_FORMAT_R1):
+            self.cpp = 0
         else:
             raise ValueError(f'Format 0x{fmt:02x} is not supported')
         self.pitch = self.width * self.cpp
@@ -64,6 +66,15 @@ class Image(object):
         self.draw.text((x, y), text, font=font, fill=color)
 
     def random(self, ratio=0):
+        if self.format in (GUD_PIXEL_FORMAT_R1, GUD_PIXEL_FORMAT_XRGB1111):
+            # The resulting ratio will not be as precise
+            rand_lines = self.height // (ratio if ratio else 1)
+            zero_lines = self.height - rand_lines
+            zeroes = self.width * 3 * zero_lines
+            buf = bytes(zeroes) + bytes(os.urandom(self.width * 3 * rand_lines))
+            self.image.frombytes(buf, 'raw', 'RGB')
+            return
+
         length = self.width * self.height * self.cpp
         if ratio == 0:
             buf = bytes(os.urandom(length))
@@ -135,13 +146,47 @@ class Image(object):
             #print('len(buf):', len(buf))
             return buf
 
+        val = None
         data = bytearray()
         #print('data(', x1, y1, width, height, ')')
         for y in range(y1, y1 + height):
             for x in range(x1, x1 + width):
                 #print(x,y)
                 pix = self.image.getpixel((x, y))
-                if self.format == GUD_PIXEL_FORMAT_RGB565:
+                if self.format == GUD_PIXEL_FORMAT_R1:
+                    pixpos = x % 8 # within byte from the left
+                    pixshift = 8 - pixpos - 1
+
+                    if x % 8 == 0:
+                        val = 0
+
+                    r = pix[0] & 0xFF
+                    g = pix[1] & 0xFF
+                    b = pix[2] & 0xFF
+                    # ITU BT.601: Y = 0.299 R + 0.587 G + 0.114 B
+                    gray8 = (3 * r + 6 * g + b) // 10;
+                    val |= (gray8 & 1) << pixshift
+
+                    if x % 8 == 7:
+                        data.append(val)
+                        val = None
+                elif self.format == GUD_PIXEL_FORMAT_XRGB1111:
+                    pixpos = x % 2 # within byte from the left
+                    pixshift = (2 - pixpos - 1) * 4;
+
+                    if x % 2 == 0:
+                        val = 0
+
+                    r = (pix[0] >> 7) & 0x01
+                    g = (pix[1] >> 7) & 0x01
+                    b = (pix[2] >> 7) & 0x01
+                    xrgb1111 = (r << 2) | (g << 1) | b
+                    val |= xrgb1111 << pixshift
+
+                    if x % 2 == 1:
+                        data.append(val)
+                        val = None
+                elif self.format == GUD_PIXEL_FORMAT_RGB565:
                     r = (pix[0] >> 3) & 0x1F
                     g = (pix[1] >> 2) & 0x3F
                     b = (pix[2] >> 3) & 0x1F
@@ -153,6 +198,12 @@ class Image(object):
                     data.extend(struct.pack('I', (r << 16) | (g << 8) | b))
                 else:
                     raise ValueError('format not supported')
+
+            # R1 or XRGB1111: In case width isn't a pixels per byte multiple
+            if val is not None:
+                data.append(val)
+                val = None
+
         return data
 
     def flush(self, x=0, y=0, width=None, height=None, compress=True):
@@ -164,6 +215,18 @@ class Image(object):
         elif width is None or height is None:
             width = self.width
             height = self.height
+        #else:
+        #    print(f'flush({x}, {y}, {width}, {height})')
+
+        # Align to byte boundary
+        if self.format == GUD_PIXEL_FORMAT_R1:
+            adj = x % 8
+            x -= adj
+            width += adj
+        elif self.format == GUD_PIXEL_FORMAT_XRGB1111:
+            adj = x % 2
+            x -= adj
+            width += adj
 
         lines = height
         if self.dev.max_buffer_size < lines * self.pitch:
