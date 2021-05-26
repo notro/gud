@@ -124,7 +124,18 @@ static bool gud_driver_control_request(uint8_t rhport, tusb_control_request_t co
                  __func__, req->bRequest, req->bmRequestType,
                  req->bmRequestType_bit.direction ? "IN" : "OUT", wLength, req->wLength);
 
-//    } else if (req_type == USB_TYPE_VENDOR && req_recipient == USB_RECIPIENT_INTERFACE) {
+    if (req->bmRequestType_bit.recipient != TUSB_REQ_RCPT_INTERFACE)
+        return false;
+
+    // tinyusb doesn't handled this
+    if (req->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD &&
+        req->bRequest == TUSB_REQ_GET_STATUS && req->bmRequestType_bit.direction) {
+        uint16_t status = 0;
+        return tud_control_xfer(rhport, req, &status, sizeof(status));
+    }
+
+    if (req->bmRequestType_bit.type != TUSB_REQ_TYPE_VENDOR)
+        return false;
 
     if (req->bmRequestType_bit.direction) {
 
