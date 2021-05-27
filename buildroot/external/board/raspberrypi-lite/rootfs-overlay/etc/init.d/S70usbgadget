@@ -7,6 +7,8 @@
 HW=$(cat /proc/cpuinfo | grep ^Hardware | cut -d":" -f2 | tr -d '[:space:]')
 SN=$(cat /proc/cpuinfo | grep ^Serial | cut -d":" -f2 | tr -d '[:space:]')
 
+MANUFACTURER="Raspberry Pi"
+
 if [ "$HW" = "BCM2835" ]; then
 	PRODUCT="Raspberry Pi Zero Display Gadget Lite"
 	MAXPOWER=120 # mA
@@ -33,6 +35,7 @@ start() {
 	fi
 
 	mkdir strings/0x409
+	echo "$MANUFACTURER" > strings/0x409/manufacturer
 	echo "$PRODUCT" > strings/0x409/product
 	echo "$SN" > strings/0x409/serialnumber
 

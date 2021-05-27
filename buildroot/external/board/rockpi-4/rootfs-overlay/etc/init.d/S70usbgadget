@@ -4,6 +4,7 @@
 
 . /etc/os-release
 
+MANUFACTURER="Radxa"
 PRODUCT="ROCK Pi 4 USB Display Gadget"
 MAXPOWER=120 # mA
 
@@ -22,6 +23,7 @@ start() {
 	fi
 
 	mkdir strings/0x409
+	echo "$MANUFACTURER" > strings/0x409/manufacturer
 	echo "$PRODUCT" > strings/0x409/product
 	echo "$SN" > strings/0x409/serialnumber
 
