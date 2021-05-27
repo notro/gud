@@ -37,9 +37,6 @@ static int gud_req_get_descriptor(const struct gud_display *disp, void *data, si
     if ((disp->num_properties + disp->num_connector_properties) > GUD_MAX_PROPERTIES)
         return -GUD_STATUS_ERROR;
 
-    if (!size)
-        return -GUD_STATUS_PROTOCOL_ERROR;
-
     desc.magic = GUD_DISPLAY_MAGIC;
     desc.version = 1;
     desc.max_buffer_size = 0;
@@ -105,9 +102,6 @@ static int gud_req_get_connector_properties(const struct gud_display *disp,
 
 static int gud_req_get_connector_status(const struct gud_display *disp, uint8_t *status, size_t size)
 {
-    if (!size)
-        return -GUD_STATUS_PROTOCOL_ERROR;
-
     *status = GUD_CONNECTOR_STATUS_CONNECTED;
 
     return sizeof(*status);
@@ -260,7 +254,7 @@ int gud_req_get(const struct gud_display *disp, uint8_t request, uint16_t index,
 
     GUD_LOG2("%s: request=0x%x index=%u size=%zu\n", __func__, request, index, size);
 
-    if (index)
+    if (index || !size)
         return -GUD_STATUS_PROTOCOL_ERROR;
 
     switch (request) {
@@ -418,7 +412,7 @@ static int gud_req_set_controller_enable(const struct gud_display *disp, const u
     int ret;
 
     if (size != sizeof(*enable))
-        return -GUD_STATUS_REQUEST_NOT_SUPPORTED;
+        return -GUD_STATUS_PROTOCOL_ERROR;
 
     GUD_LOG1("%s: enable=%u\n", __func__, *enable);
 
@@ -435,7 +429,7 @@ static int gud_req_set_display_enable(const struct gud_display *disp, const uint
     int ret;
 
     if (size != sizeof(*enable))
-        return -GUD_STATUS_REQUEST_NOT_SUPPORTED;
+        return -GUD_STATUS_PROTOCOL_ERROR;
 
     GUD_LOG1("%s: enable=%u\n", __func__, *enable);
 
