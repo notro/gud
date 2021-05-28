@@ -1,10 +1,12 @@
-From 6e97ef64d858f6a9106b7b936a838bbefe4cb0fe Mon Sep 17 00:00:00 2001
+From 757e26712337be6be70f7405c38cc0639957eedc Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
-Date: Fri, 9 Oct 2020 16:52:24 +0200
-Subject: [PATCH v7 01/11] drm/uapi: Add USB connector type
+Date: Sat, 13 Mar 2021 12:25:43 +0100
+Subject: [PATCH] drm/uapi: Add USB connector type
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
+
+[ Upstream commit 757e26712337be6be70f7405c38cc0639957eedc ]
 
 Add a connector type for USB connected display panels.
 
@@ -19,13 +21,14 @@ v2:
 
 Acked-by: Daniel Vetter <daniel.vetter@ffwll.ch>
 Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+Link: https://patchwork.freedesktop.org/patch/msgid/20210313112545.37527-2-noralf@tronnes.org
 ---
  drivers/gpu/drm/drm_connector.c | 1 +
  include/uapi/drm/drm_mode.h     | 1 +
  2 files changed, 2 insertions(+)
 
 diff --git a/drivers/gpu/drm/drm_connector.c b/drivers/gpu/drm/drm_connector.c
-index 717c4e7271b0..52712daed3bc 100644
+index 98b6ec45ef9679..7631f76e7f3453 100644
 --- a/drivers/gpu/drm/drm_connector.c
 +++ b/drivers/gpu/drm/drm_connector.c
 @@ -94,6 +94,7 @@ static struct drm_conn_prop_enum_list drm_connector_enum_list[] = {
@@ -37,10 +40,10 @@ index 717c4e7271b0..52712daed3bc 100644
  
  void drm_connector_ida_init(void)
 diff --git a/include/uapi/drm/drm_mode.h b/include/uapi/drm/drm_mode.h
-index fed66a03c7ae..33024cc5d26e 100644
+index d1a93d2a85f9e8..a5e76aa06ad565 100644
 --- a/include/uapi/drm/drm_mode.h
 +++ b/include/uapi/drm/drm_mode.h
-@@ -367,6 +367,7 @@ enum drm_mode_subconnector {
+@@ -388,6 +388,7 @@ enum drm_mode_subconnector {
  #define DRM_MODE_CONNECTOR_DPI		17
  #define DRM_MODE_CONNECTOR_WRITEBACK	18
  #define DRM_MODE_CONNECTOR_SPI		19
@@ -48,6 +51,3 @@ index fed66a03c7ae..33024cc5d26e 100644
  
  /**
   * struct drm_mode_get_connector - Get connector metadata.
--- 
-2.23.0
-

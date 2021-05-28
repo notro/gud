@@ -1,10 +1,12 @@
-From 259768192352cbd13567ef9dd2639987af15cfdb Mon Sep 17 00:00:00 2001
+From 40e1a70b4aedf2859a1829991b48ef0ebe650bf2 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
-Date: Tue, 28 Apr 2020 16:13:02 +0200
-Subject: [PATCH v7 03/11] drm: Add GUD USB Display driver
+Date: Sat, 13 Mar 2021 12:25:45 +0100
+Subject: [PATCH] drm: Add GUD USB Display driver
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
+
+[ Upstream commit 40e1a70b4aedf2859a1829991b48ef0ebe650bf2 ]
 
 This adds a USB display driver with the intention that it can be
 used with future USB interfaced low end displays/adapters. The Linux
@@ -116,10 +118,19 @@ v7:
 - Fix DRM_IOCTL_MODE_OBJ_SETPROPERTY and the rotation property
 - Fix dma-buf import (Thomas)
 
-Cc: Peter Stuge <peter@stuge.se>
+v8:
+- Forgot to filter RGB111 from reaching userspace
+- Handle a device that only returns unknown device properties (Peter)
+- s/GUD_PIXEL_FORMAT_RGB111/GUD_PIXEL_FORMAT_XRGB1111/ (Peter)
+- Fix R1 and XRGB1111 format conversion
+- Add FIXME about Big Endian being broken (Peter, Ilia)
+
 Cc: Lubomir Rintel <lkundrak@v3.sk>
 Acked-by: Daniel Vetter <daniel.vetter@ffwll.ch>
+Reviewed-by: Peter Stuge <peter@stuge.se>
+Tested-by: Peter Stuge <peter@stuge.se>
 Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+Link: https://patchwork.freedesktop.org/patch/msgid/20210313112545.37527-4-noralf@tronnes.org
 ---
  MAINTAINERS                         |   8 +
  drivers/gpu/drm/Kconfig             |   2 +
@@ -127,11 +138,11 @@ Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
  drivers/gpu/drm/gud/Kconfig         |  14 +
  drivers/gpu/drm/gud/Makefile        |   4 +
  drivers/gpu/drm/gud/gud_connector.c | 729 ++++++++++++++++++++++++++++
- drivers/gpu/drm/gud/gud_drv.c       | 659 +++++++++++++++++++++++++
+ drivers/gpu/drm/gud/gud_drv.c       | 661 +++++++++++++++++++++++++
  drivers/gpu/drm/gud/gud_internal.h  | 154 ++++++
- drivers/gpu/drm/gud/gud_pipe.c      | 535 ++++++++++++++++++++
+ drivers/gpu/drm/gud/gud_pipe.c      | 552 +++++++++++++++++++++
  include/drm/gud.h                   | 333 +++++++++++++
- 10 files changed, 2439 insertions(+)
+ 10 files changed, 2458 insertions(+)
  create mode 100644 drivers/gpu/drm/gud/Kconfig
  create mode 100644 drivers/gpu/drm/gud/Makefile
  create mode 100644 drivers/gpu/drm/gud/gud_connector.c
@@ -141,10 +152,10 @@ Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
  create mode 100644 include/drm/gud.h
 
 diff --git a/MAINTAINERS b/MAINTAINERS
-index 00112c044608..e7f71ac55f08 100644
+index fbae9a19d0178b..4b705ba51c5478 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
-@@ -5525,6 +5525,14 @@ S:	Maintained
+@@ -5586,6 +5586,14 @@ S:	Maintained
  F:	Documentation/devicetree/bindings/display/panel/feiyang,fy07024di26a30d.yaml
  F:	drivers/gpu/drm/panel/panel-feiyang-fy07024di26a30d.c
  
@@ -160,10 +171,10 @@ index 00112c044608..e7f71ac55f08 100644
  M:	Hans de Goede <hdegoede@redhat.com>
  S:	Maintained
 diff --git a/drivers/gpu/drm/Kconfig b/drivers/gpu/drm/Kconfig
-index 147d61b9674e..6d3f47933e51 100644
+index 1461652921be8b..3c16bd1afd8718 100644
 --- a/drivers/gpu/drm/Kconfig
 +++ b/drivers/gpu/drm/Kconfig
-@@ -388,6 +388,8 @@ source "drivers/gpu/drm/tidss/Kconfig"
+@@ -384,6 +384,8 @@ source "drivers/gpu/drm/tidss/Kconfig"
  
  source "drivers/gpu/drm/xlnx/Kconfig"
  
@@ -173,17 +184,17 @@ index 147d61b9674e..6d3f47933e51 100644
  
  menuconfig DRM_LEGACY
 diff --git a/drivers/gpu/drm/Makefile b/drivers/gpu/drm/Makefile
-index 81569009f884..78dd8e12525d 100644
+index 5eb5bf7c16e369..e932730a1706ec 100644
 --- a/drivers/gpu/drm/Makefile
 +++ b/drivers/gpu/drm/Makefile
-@@ -124,3 +124,4 @@ obj-$(CONFIG_DRM_ASPEED_GFX) += aspeed/
+@@ -125,3 +125,4 @@ obj-$(CONFIG_DRM_ASPEED_GFX) += aspeed/
  obj-$(CONFIG_DRM_MCDE) += mcde/
  obj-$(CONFIG_DRM_TIDSS) += tidss/
  obj-y			+= xlnx/
 +obj-y			+= gud/
 diff --git a/drivers/gpu/drm/gud/Kconfig b/drivers/gpu/drm/gud/Kconfig
 new file mode 100644
-index 000000000000..1c8601bf4d91
+index 00000000000000..1c8601bf4d91e5
 --- /dev/null
 +++ b/drivers/gpu/drm/gud/Kconfig
 @@ -0,0 +1,14 @@
@@ -203,7 +214,7 @@ index 000000000000..1c8601bf4d91
 +	  If M is selected the module will be called gud.
 diff --git a/drivers/gpu/drm/gud/Makefile b/drivers/gpu/drm/gud/Makefile
 new file mode 100644
-index 000000000000..68a1c622cf33
+index 00000000000000..68a1c622cf3326
 --- /dev/null
 +++ b/drivers/gpu/drm/gud/Makefile
 @@ -0,0 +1,4 @@
@@ -213,7 +224,7 @@ index 000000000000..68a1c622cf33
 +obj-$(CONFIG_DRM_GUD)		+= gud.o
 diff --git a/drivers/gpu/drm/gud/gud_connector.c b/drivers/gpu/drm/gud/gud_connector.c
 new file mode 100644
-index 000000000000..ec495dcd6122
+index 00000000000000..ec495dcd612246
 --- /dev/null
 +++ b/drivers/gpu/drm/gud/gud_connector.c
 @@ -0,0 +1,729 @@
@@ -948,10 +959,10 @@ index 000000000000..ec495dcd6122
 +}
 diff --git a/drivers/gpu/drm/gud/gud_drv.c b/drivers/gpu/drm/gud/gud_drv.c
 new file mode 100644
-index 000000000000..2e3056e4d271
+index 00000000000000..727612124dd046
 --- /dev/null
 +++ b/drivers/gpu/drm/gud/gud_drv.c
-@@ -0,0 +1,659 @@
+@@ -0,0 +1,661 @@
 +// SPDX-License-Identifier: MIT
 +/*
 + * Copyright 2020 Noralf Trønnes
@@ -995,8 +1006,8 @@ index 000000000000..2e3056e4d271
 +	.vsub = 1,
 +};
 +
-+static const struct drm_format_info gud_drm_format_rgb111 = {
-+	.format = GUD_DRM_FORMAT_RGB111,
++static const struct drm_format_info gud_drm_format_xrgb1111 = {
++	.format = GUD_DRM_FORMAT_XRGB1111,
 +	.num_planes = 1,
 +	.char_per_block = { 1, 0, 0 },
 +	.block_w = { 2, 0, 0 },
@@ -1221,6 +1232,7 @@ index 000000000000..2e3056e4d271
 +	}
 +
 +	num_properties = ret / sizeof(*properties);
++	ret = 0;
 +
 +	gdrm->properties = drmm_kcalloc(&gdrm->drm, num_properties, sizeof(*gdrm->properties),
 +					GFP_KERNEL);
@@ -1441,16 +1453,17 @@ index 000000000000..2e3056e4d271
 +
 +		if (format == GUD_DRM_FORMAT_R1)
 +			info = &gud_drm_format_r1;
-+		else if (format == GUD_DRM_FORMAT_RGB111)
-+			info = &gud_drm_format_rgb111;
++		else if (format == GUD_DRM_FORMAT_XRGB1111)
++			info = &gud_drm_format_xrgb1111;
 +		else
 +			info = drm_format_info(format);
 +
 +		switch (format) {
 +		case GUD_DRM_FORMAT_R1:
 +			fallthrough;
-+		case GUD_DRM_FORMAT_RGB111:
-+			xrgb8888_emulation_format = info;
++		case GUD_DRM_FORMAT_XRGB1111:
++			if (!xrgb8888_emulation_format)
++				xrgb8888_emulation_format = info;
 +			break;
 +		case DRM_FORMAT_RGB565:
 +			rgb565_supported = true;
@@ -1466,7 +1479,7 @@ index 000000000000..2e3056e4d271
 +			       drm->mode_config.max_height;
 +		max_buffer_size = max(max_buffer_size, fmt_buf_size);
 +
-+		if (format == GUD_DRM_FORMAT_R1)
++		if (format == GUD_DRM_FORMAT_R1 || format == GUD_DRM_FORMAT_XRGB1111)
 +			continue; /* Internal not for userspace */
 +
 +		formats[num_formats++] = format;
@@ -1613,7 +1626,7 @@ index 000000000000..2e3056e4d271
 +MODULE_LICENSE("Dual MIT/GPL");
 diff --git a/drivers/gpu/drm/gud/gud_internal.h b/drivers/gpu/drm/gud/gud_internal.h
 new file mode 100644
-index 000000000000..b3fd2bdd4901
+index 00000000000000..de2f2d2dbc60c3
 --- /dev/null
 +++ b/drivers/gpu/drm/gud/gud_internal.h
 @@ -0,0 +1,154 @@
@@ -1689,16 +1702,16 @@ index 000000000000..b3fd2bdd4901
 +int gud_get_connectors(struct gud_device *gdrm);
 +
 +/* Driver internal fourcc transfer formats */
-+#define GUD_DRM_FORMAT_R1	0x00000122
-+#define GUD_DRM_FORMAT_RGB111	0x03121722
++#define GUD_DRM_FORMAT_R1		0x00000122
++#define GUD_DRM_FORMAT_XRGB1111		0x03121722
 +
 +static inline u8 gud_from_fourcc(u32 fourcc)
 +{
 +	switch (fourcc) {
 +	case GUD_DRM_FORMAT_R1:
 +		return GUD_PIXEL_FORMAT_R1;
-+	case GUD_DRM_FORMAT_RGB111:
-+		return GUD_PIXEL_FORMAT_RGB111;
++	case GUD_DRM_FORMAT_XRGB1111:
++		return GUD_PIXEL_FORMAT_XRGB1111;
 +	case DRM_FORMAT_RGB565:
 +		return GUD_PIXEL_FORMAT_RGB565;
 +	case DRM_FORMAT_XRGB8888:
@@ -1715,8 +1728,8 @@ index 000000000000..b3fd2bdd4901
 +	switch (format) {
 +	case GUD_PIXEL_FORMAT_R1:
 +		return GUD_DRM_FORMAT_R1;
-+	case GUD_PIXEL_FORMAT_RGB111:
-+		return GUD_DRM_FORMAT_RGB111;
++	case GUD_PIXEL_FORMAT_XRGB1111:
++		return GUD_DRM_FORMAT_XRGB1111;
 +	case GUD_PIXEL_FORMAT_RGB565:
 +		return DRM_FORMAT_RGB565;
 +	case GUD_PIXEL_FORMAT_XRGB8888:
@@ -1773,10 +1786,10 @@ index 000000000000..b3fd2bdd4901
 +#endif
 diff --git a/drivers/gpu/drm/gud/gud_pipe.c b/drivers/gpu/drm/gud/gud_pipe.c
 new file mode 100644
-index 000000000000..1b036c7d781e
+index 00000000000000..ab96afb94241d2
 --- /dev/null
 +++ b/drivers/gpu/drm/gud/gud_pipe.c
-@@ -0,0 +1,535 @@
+@@ -0,0 +1,552 @@
 +// SPDX-License-Identifier: MIT
 +/*
 + * Copyright 2020 Noralf Trønnes
@@ -1802,6 +1815,12 @@ index 000000000000..1b036c7d781e
 +
 +#include "gud_internal.h"
 +
++/*
++ * FIXME: The driver is probably broken on Big Endian machines.
++ * See discussion:
++ * https://lore.kernel.org/dri-devel/CAKb7UvihLX0hgBOP3VBG7O+atwZcUVCPVuBdfmDMpg0NjXe-cQ@mail.gmail.com/
++ */
++
 +static bool gud_is_big_endian(void)
 +{
 +#if defined(__BIG_ENDIAN)
@@ -1818,7 +1837,7 @@ index 000000000000..1b036c7d781e
 +	unsigned int block_width = drm_format_info_block_width(format, 0);
 +	unsigned int bits_per_pixel = 8 / block_width;
 +	unsigned int x, y, width, height;
-+	u8 *p, *block = dst; /* Assign to silence compiler warning */
++	u8 pix, *pix8, *block = dst; /* Assign to silence compiler warning */
 +	size_t len;
 +	void *buf;
 +
@@ -1835,17 +1854,20 @@ index 000000000000..1b036c7d781e
 +		return 0;
 +
 +	drm_fb_xrgb8888_to_gray8(buf, src, fb, rect);
++	pix8 = buf;
 +
-+	p = buf;
-+	for (y = 0; y < drm_rect_height(rect); y++) {
-+		for (x = 0; x < drm_rect_width(rect); x++) {
-+			if (!(x % block_width)) {
++	for (y = 0; y < height; y++) {
++		for (x = 0; x < width; x++) {
++			unsigned int pixpos = x % block_width; /* within byte from the left */
++			unsigned int pixshift = (block_width - pixpos - 1) * bits_per_pixel;
++
++			if (!pixpos) {
 +				block = dst++;
 +				*block = 0;
 +			}
 +
-+			*block <<= bits_per_pixel;
-+			*block |= (*p++) >> (8 - bits_per_pixel);
++			pix = (*pix8++) >> (8 - bits_per_pixel);
++			*block |= pix << pixshift;
 +		}
 +	}
 +
@@ -1855,40 +1877,48 @@ index 000000000000..1b036c7d781e
 +}
 +
 +static size_t gud_xrgb8888_to_color(u8 *dst, const struct drm_format_info *format,
-+				    u32 *src, struct drm_framebuffer *fb,
++				    void *src, struct drm_framebuffer *fb,
 +				    struct drm_rect *rect)
 +{
 +	unsigned int block_width = drm_format_info_block_width(format, 0);
-+	unsigned int x, y, width, height;
-+	u8 r, g, b, *block = dst; /* Assign to silence compiler warning */
++	unsigned int bits_per_pixel = 8 / block_width;
++	u8 r, g, b, pix, *block = dst; /* Assign to silence compiler warning */
++	unsigned int x, y, width;
++	u32 *pix32;
 +	size_t len;
 +
 +	/* Start on a byte boundary */
 +	rect->x1 = ALIGN_DOWN(rect->x1, block_width);
 +	width = drm_rect_width(rect);
-+	height = drm_rect_height(rect);
-+	len = drm_format_info_min_pitch(format, 0, width) * height;
++	len = drm_format_info_min_pitch(format, 0, width) * drm_rect_height(rect);
 +
-+	for (y = 0; y < height; y++) {
++	for (y = rect->y1; y < rect->y2; y++) {
++		pix32 = src + (y * fb->pitches[0]);
++		pix32 += rect->x1;
++
 +		for (x = 0; x < width; x++) {
-+			if (!(x % block_width)) {
++			unsigned int pixpos = x % block_width; /* within byte from the left */
++			unsigned int pixshift = (block_width - pixpos - 1) * bits_per_pixel;
++
++			if (!pixpos) {
 +				block = dst++;
 +				*block = 0;
 +			}
 +
-+			r = *src >> 16;
-+			g = *src >> 8;
-+			b = *src++;
++			r = *pix32 >> 16;
++			g = *pix32 >> 8;
++			b = *pix32++;
 +
 +			switch (format->format) {
-+			case GUD_DRM_FORMAT_RGB111:
-+				*block <<= 4;
-+				*block |= ((r >> 7) << 2) | ((g >> 7) << 1) | (b >> 7);
++			case GUD_DRM_FORMAT_XRGB1111:
++				pix = ((r >> 7) << 2) | ((g >> 7) << 1) | (b >> 7);
 +				break;
 +			default:
 +				WARN_ON_ONCE(1);
 +				return len;
 +			};
++
++			*block |= pix << pixshift;
 +		}
 +	}
 +
@@ -2314,7 +2344,7 @@ index 000000000000..1b036c7d781e
 +}
 diff --git a/include/drm/gud.h b/include/drm/gud.h
 new file mode 100644
-index 000000000000..a078aad63a31
+index 00000000000000..0b46b54fe56ef4
 --- /dev/null
 +++ b/include/drm/gud.h
 @@ -0,0 +1,333 @@
@@ -2568,7 +2598,7 @@ index 000000000000..a078aad63a31
 +  #define GUD_FORMATS_MAX_NUM			32
 +  /* R1 is a 1-bit monochrome transfer format presented to userspace as XRGB8888 */
 +  #define GUD_PIXEL_FORMAT_R1			0x01
-+  #define GUD_PIXEL_FORMAT_RGB111		0x20
++  #define GUD_PIXEL_FORMAT_XRGB1111		0x20
 +  #define GUD_PIXEL_FORMAT_RGB565		0x40
 +  #define GUD_PIXEL_FORMAT_XRGB8888		0x80
 +  #define GUD_PIXEL_FORMAT_ARGB8888		0x81
@@ -2651,6 +2681,3 @@ index 000000000000..a078aad63a31
 +#define GUD_REQ_SET_DISPLAY_ENABLE			0x64
 +
 +#endif
--- 
-2.23.0
-
