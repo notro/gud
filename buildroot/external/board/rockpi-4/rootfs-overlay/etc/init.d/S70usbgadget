@@ -10,6 +10,21 @@ MAXPOWER=120 # mA
 
 UDC=$(ls /sys/class/udc | cut -f1 | grep -v usbip | head -n1)
 
+if grep -q 'drm_dev=' /proc/cmdline; then
+	drm_dev=$(cat /proc/cmdline | xargs -n1 | grep 'drm_dev=' | cut -d'=' -f2)
+else
+	drm_dev=0
+fi
+
+backlight_dev=
+cd /sys/class/backlight/
+for d in * ; do
+	if [ -d "$d" ] && [ $(cat "$d/max_brightness") -gt 1 ]; then
+		backlight_dev="$d"
+		break
+	fi
+done
+
 start() {
 	cd /sys/kernel/config/usb_gadget
 	mkdir g1
@@ -31,7 +46,17 @@ start() {
 	echo "$MAXPOWER" > configs/c.1/MaxPower
 
 	mkdir functions/gud.0
-	echo 0 > functions/gud.0/drm_dev
+	echo "$drm_dev" > functions/gud.0/drm_dev
+	if [ -n "$backlight_dev" ]; then
+		echo "$backlight_dev" > functions/gud.0/backlight_dev
+	fi
+	if grep -q nocompression /proc/cmdline; then
+		echo 0 > functions/gud.0/compression
+	fi
+	if grep -q rgb565 /proc/cmdline; then
+		# GUD_PIXEL_FORMAT_RGB565
+		printf "@" > functions/gud.0/formats
+	fi
 	ln -s functions/gud.0/ configs/c.1/
 
 	echo "$UDC" > UDC
