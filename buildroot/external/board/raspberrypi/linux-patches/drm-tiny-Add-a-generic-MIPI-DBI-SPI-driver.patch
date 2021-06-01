@@ -1,0 +1,340 @@
+From 35e396a901ef802b3d492451af69fa10cbdb4362 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
+Date: Sat, 29 May 2021 22:31:03 +0200
+Subject: [PATCH 7/7] drm/tiny: Add a generic MIPI DBI SPI driver
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Required DT properties:
+- init
+  The same format as fbtft
+- width
+  Width in pixels
+- height
+  Height in pixels
+
+It could be useful to have properties to set mipi_dbi_dev.left_offset and
+.top_offset.
+
+For general use these properties would be useful:
+- rotation
+- rotation0, rotation90, rotation180, rotation270 (for the
+  MIPI_DCS_SET_ADDRESS_MODE values to use for the rotation. Could also be
+  an array instead of 4 properties).
+
+Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+---
+ drivers/gpu/drm/tiny/Kconfig        |  11 ++
+ drivers/gpu/drm/tiny/Makefile       |   1 +
+ drivers/gpu/drm/tiny/mipi_dbi_drv.c | 270 ++++++++++++++++++++++++++++
+ 3 files changed, 282 insertions(+)
+ create mode 100644 drivers/gpu/drm/tiny/mipi_dbi_drv.c
+
+diff --git a/drivers/gpu/drm/tiny/Kconfig b/drivers/gpu/drm/tiny/Kconfig
+index 2b6414f0fa75..eb6253237ff1 100644
+--- a/drivers/gpu/drm/tiny/Kconfig
++++ b/drivers/gpu/drm/tiny/Kconfig
+@@ -131,3 +131,14 @@ config TINYDRM_ST7735R
+ 	  * Okaya RH128128T 1.44" 128x128 TFT
+ 
+ 	  If M is selected the module will be called st7735r.
++
++config DRM_MIPI_DBI_DRV
++	tristate "DRM support for MIPI DBI SPI displays"
++	depends on DRM && SPI
++	select DRM_KMS_HELPER
++	select DRM_KMS_CMA_HELPER
++	select DRM_MIPI_DBI
++	select BACKLIGHT_CLASS_DEVICE
++	help
++	  DRM driver for MIPI DBI SPI display panels.
++	  If M is selected the module will be called mipi_dbi_drv.
+diff --git a/drivers/gpu/drm/tiny/Makefile b/drivers/gpu/drm/tiny/Makefile
+index 6ae4e9e5a35f..d5bf97e582b3 100644
+--- a/drivers/gpu/drm/tiny/Makefile
++++ b/drivers/gpu/drm/tiny/Makefile
+@@ -10,3 +10,4 @@ obj-$(CONFIG_TINYDRM_MI0283QT)		+= mi0283qt.o
+ obj-$(CONFIG_TINYDRM_REPAPER)		+= repaper.o
+ obj-$(CONFIG_TINYDRM_ST7586)		+= st7586.o
+ obj-$(CONFIG_TINYDRM_ST7735R)		+= st7735r.o
++obj-$(CONFIG_DRM_MIPI_DBI_DRV)		+= mipi_dbi_drv.o
+diff --git a/drivers/gpu/drm/tiny/mipi_dbi_drv.c b/drivers/gpu/drm/tiny/mipi_dbi_drv.c
+new file mode 100644
+index 000000000000..da05fbe3716e
+--- /dev/null
++++ b/drivers/gpu/drm/tiny/mipi_dbi_drv.c
+@@ -0,0 +1,270 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
++/*
++ * DRM driver for MIPI DBI SPI display panels
++ *
++ * Copyright 2021 Noralf Trønnes
++ */
++
++#include <linux/backlight.h>
++#include <linux/delay.h>
++#include <linux/gpio/consumer.h>
++#include <linux/module.h>
++#include <linux/property.h>
++#include <linux/regulator/consumer.h>
++#include <linux/spi/spi.h>
++
++#include <drm/drm_atomic_helper.h>
++#include <drm/drm_drv.h>
++#include <drm/drm_fb_helper.h>
++#include <drm/drm_gem_cma_helper.h>
++#include <drm/drm_gem_framebuffer_helper.h>
++#include <drm/drm_managed.h>
++#include <drm/drm_mipi_dbi.h>
++#include <drm/drm_modeset_helper.h>
++#include <video/mipi_display.h>
++
++/* Use the same as fbtft */
++#define FBTFT_OF_INIT_CMD	BIT(24)
++#define FBTFT_OF_INIT_DELAY	BIT(25)
++
++static void mipi_dbi_drv_enable(struct drm_simple_display_pipe *pipe,
++				struct drm_crtc_state *crtc_state,
++				struct drm_plane_state *plane_state)
++{
++	struct mipi_dbi_dev *dbidev = drm_to_mipi_dbi_dev(pipe->crtc.dev);
++	struct device *dev = pipe->crtc.dev->dev;
++	struct mipi_dbi *dbi = &dbidev->dbi;
++	unsigned int count, i, data_idx = 0;
++	u32 *values = NULL;
++	u8 cmd, data[64];
++	int ret, idx;
++
++	if (!drm_dev_enter(pipe->crtc.dev, &idx))
++		return;
++
++	DRM_DEBUG_DRIVER("\n");
++
++	ret = mipi_dbi_poweron_reset(dbidev);
++	if (ret < 0) {
++		dev_err(dev, "Failed to reset controller (error=%d)\n", ret);
++		goto out_exit;
++	}
++
++	count = device_property_count_u32(dev, "init");
++	if (count <= 0)
++		goto out_exit;
++
++	values = kmalloc_array(count + 1, sizeof(*values), GFP_KERNEL);
++	if (!values)
++		goto out_exit;
++
++	/* Lookahead used for sending the last command */
++	values[count] = FBTFT_OF_INIT_CMD;
++
++	ret = device_property_read_u32_array(dev, "init", values, count);
++	if (ret) {
++		dev_err(dev, "Failed to read init property (error=%d)\n", ret);
++		goto out_exit;
++	}
++
++	for (i = 0; i < count; i++) {
++		u32 val = values[i];
++
++		if ((val & 0xffffff00) == FBTFT_OF_INIT_CMD) {
++			cmd = val & 0xff;
++			data_idx = 0;
++		} else if ((val & 0xffffff00) == FBTFT_OF_INIT_DELAY) {
++			DRM_DEBUG_DRIVER("sleep %ums\n", val & 0xff);
++			msleep(val & 0xff);
++		} else if (val & 0xffffff00) {
++			dev_err(dev, "Unknown init value[%d]: 0x%x\n", i, val);
++			goto out_exit;
++		} else {
++			if (data_idx >= sizeof(data)) {
++				dev_err(dev, "Too long command\n");
++				goto out_exit;
++			}
++			data[data_idx++] = val & 0xff;
++		}
++
++		/* Send command if this wasn't a delay and the next is command or delay */
++		if (!(val & FBTFT_OF_INIT_DELAY) && (values[i + 1] & 0xffffff00)) {
++			ret = mipi_dbi_command_buf(dbi, cmd, data, data_idx);
++			if (ret) {
++				dev_err(dev, "Failed to write command (error=%d)\n", ret);
++				goto out_exit;
++			}
++		}
++	}
++
++	mipi_dbi_enable_flush(dbidev, crtc_state, plane_state);
++out_exit:
++	kfree(values);
++	drm_dev_exit(idx);
++}
++
++static const struct drm_simple_display_pipe_funcs mipi_dbi_drv_pipe_funcs = {
++	.enable = mipi_dbi_drv_enable,
++	.disable = mipi_dbi_pipe_disable,
++	.update = mipi_dbi_pipe_update,
++	.prepare_fb = drm_gem_fb_simple_display_pipe_prepare_fb,
++};
++
++DEFINE_DRM_GEM_CMA_FOPS(mipi_dbi_drv_fops);
++
++static struct drm_driver mipi_dbi_drv_driver = {
++	.driver_features	= DRIVER_GEM | DRIVER_MODESET | DRIVER_ATOMIC,
++	.fops			= &mipi_dbi_drv_fops,
++	DRM_GEM_CMA_DRIVER_OPS_VMAP,
++	.name			= "mipi_dbi_drv",
++	.desc			= "MIPI DBI",
++	.date			= "20210528",
++	.major			= 1,
++	.minor			= 0,
++};
++
++static const struct of_device_id mipi_dbi_drv_of_match[] = {
++	{ .compatible = "mipi_dbi_drv" },
++	{},
++};
++MODULE_DEVICE_TABLE(of, mipi_dbi_drv_of_match);
++
++static const struct spi_device_id mipi_dbi_drv_id[] = {
++	{ "mipi_dbi_drv", 0 },
++	{ },
++};
++MODULE_DEVICE_TABLE(spi, mipi_dbi_drv_id);
++
++static int mipi_dbi_drv_probe(struct spi_device *spi)
++{
++	struct device *dev = &spi->dev;
++	struct mipi_dbi_dev *dbidev;
++	struct drm_device *drm;
++	struct mipi_dbi *dbi;
++	struct gpio_desc *dc;
++	u32 width, height;
++	int ret;
++	struct drm_display_mode display_mode = {
++		.type = DRM_MODE_TYPE_DRIVER,
++		.clock = 1 /* pass validation */,
++	};
++
++	ret = device_property_count_u32(dev, "init");
++	if (ret <= 0) {
++		dev_err(dev, "init property missing or empty\n");
++		return ret ? ret : -ENODATA;
++	}
++
++	ret = device_property_read_u32(dev, "width", &width);
++	if (ret)
++		return ret;
++
++	ret = device_property_read_u32(dev, "height", &height);
++	if (ret)
++		return ret;
++
++	display_mode.hdisplay = width;
++	display_mode.hsync_start = width;
++	display_mode.hsync_end = width;
++	display_mode.htotal = width;
++	display_mode.vdisplay = height;
++	display_mode.vsync_start = height;
++	display_mode.vsync_end = height;
++	display_mode.vtotal = height;
++
++	dbidev = devm_drm_dev_alloc(dev, &mipi_dbi_drv_driver, struct mipi_dbi_dev, drm);
++	if (IS_ERR(dbidev))
++		return PTR_ERR(dbidev);
++
++	dbi = &dbidev->dbi;
++	drm = &dbidev->drm;
++
++	dbi->reset = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_HIGH);
++	if (IS_ERR(dbi->reset)) {
++		dev_err(dev, "Failed to get gpio 'reset'\n");
++		return PTR_ERR(dbi->reset);
++	}
++
++	dc = devm_gpiod_get_optional(dev, "dc", GPIOD_OUT_LOW);
++	if (IS_ERR(dc)) {
++		dev_err(dev, "Failed to get gpio 'dc'\n");
++		return PTR_ERR(dc);
++	}
++
++	dbidev->regulator = devm_regulator_get(dev, "power");
++	if (IS_ERR(dbidev->regulator))
++		return PTR_ERR(dbidev->regulator);
++
++	dbidev->backlight = devm_of_find_backlight(dev);
++	if (IS_ERR(dbidev->backlight))
++		return PTR_ERR(dbidev->backlight);
++
++	ret = mipi_dbi_spi_init(spi, dbi, dc);
++	if (ret)
++		return ret;
++
++	ret = mipi_dbi_dev_init(dbidev, &mipi_dbi_drv_pipe_funcs, &display_mode, 0);
++	if (ret)
++		return ret;
++
++	drm_mode_config_reset(drm);
++
++	ret = drm_dev_register(drm, 0);
++	if (ret)
++		return ret;
++
++	spi_set_drvdata(spi, drm);
++
++	drm_fbdev_generic_setup(drm, 0);
++
++	return 0;
++}
++
++static int mipi_dbi_drv_remove(struct spi_device *spi)
++{
++	struct drm_device *drm = spi_get_drvdata(spi);
++
++	drm_dev_unplug(drm);
++	drm_atomic_helper_shutdown(drm);
++
++	return 0;
++}
++
++static void mipi_dbi_drv_shutdown(struct spi_device *spi)
++{
++	drm_atomic_helper_shutdown(spi_get_drvdata(spi));
++}
++
++static int __maybe_unused mipi_dbi_drv_pm_suspend(struct device *dev)
++{
++	return drm_mode_config_helper_suspend(dev_get_drvdata(dev));
++}
++
++static int __maybe_unused mipi_dbi_drv_pm_resume(struct device *dev)
++{
++	drm_mode_config_helper_resume(dev_get_drvdata(dev));
++
++	return 0;
++}
++
++static const struct dev_pm_ops mipi_dbi_drv_pm_ops = {
++	SET_SYSTEM_SLEEP_PM_OPS(mipi_dbi_drv_pm_suspend, mipi_dbi_drv_pm_resume)
++};
++
++static struct spi_driver mipi_dbi_drv_spi_driver = {
++	.driver = {
++		.name = "mipi_dbi_drv",
++		.owner = THIS_MODULE,
++		.of_match_table = mipi_dbi_drv_of_match,
++		.pm = &mipi_dbi_drv_pm_ops,
++	},
++	.id_table = mipi_dbi_drv_id,
++	.probe = mipi_dbi_drv_probe,
++	.remove = mipi_dbi_drv_remove,
++	.shutdown = mipi_dbi_drv_shutdown,
++};
++module_spi_driver(mipi_dbi_drv_spi_driver);
++
++MODULE_DESCRIPTION("MIPI DBI DRM driver");
++MODULE_AUTHOR("Noralf Trønnes");
++MODULE_LICENSE("GPL");
+-- 
+2.23.0
+
