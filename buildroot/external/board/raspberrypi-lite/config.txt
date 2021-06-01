@@ -7,10 +7,6 @@ disable_overscan=1
 # prevent the firmware from adding video= display modes through the kernel command line
 disable_fw_kms_setup=1
 
-# XXXXXXX
-core_freq=250
-enable_uart=1
-
 [pi0]
 dtoverlay=dwc2,dr_mode=otg
 dtoverlay=vc4-kms-v3d,noaudio,nocomposite
