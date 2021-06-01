@@ -1,7 +1,7 @@
-From 18f869845d6cc6afdd41eeb171751e0df8e7d87e Mon Sep 17 00:00:00 2001
+From 6ad4a6efe0b01be10de9d9f2d5f0a68df0d0c692 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
 Date: Tue, 28 Apr 2020 17:38:02 +0200
-Subject: [PATCH v7 08/11] usb: gadget: function: Add GUD USB Display support
+Subject: [PATCH 5/5] usb: gadget: function: Add GUD USB Display support
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -16,25 +16,24 @@ lz4 compressed framebuffer data/pixels are sent over the bulk endpoint.
 The DRM part of the gadget is placed in the DRM subsystem since it reaches
 into the DRM internals.
 
-Cc: Felipe Balbi <balbi@kernel.org>
 Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
 ---
- .../ABI/testing/configfs-usb-gadget-gud       |  10 +
+ .../ABI/testing/configfs-usb-gadget-gud       |  13 +
  MAINTAINERS                                   |   2 +
  drivers/gpu/drm/gud/gud_gadget.c              |   2 +-
  drivers/usb/gadget/Kconfig                    |  12 +
  drivers/usb/gadget/function/Makefile          |   2 +
- drivers/usb/gadget/function/f_gud.c           | 743 ++++++++++++++++++
- 6 files changed, 770 insertions(+), 1 deletion(-)
+ drivers/usb/gadget/function/f_gud.c           | 866 ++++++++++++++++++
+ 6 files changed, 896 insertions(+), 1 deletion(-)
  create mode 100644 Documentation/ABI/testing/configfs-usb-gadget-gud
  create mode 100644 drivers/usb/gadget/function/f_gud.c
 
 diff --git a/Documentation/ABI/testing/configfs-usb-gadget-gud b/Documentation/ABI/testing/configfs-usb-gadget-gud
 new file mode 100644
-index 000000000000..64bff7d68b21
+index 000000000000..bbf32d494d98
 --- /dev/null
 +++ b/Documentation/ABI/testing/configfs-usb-gadget-gud
-@@ -0,0 +1,10 @@
+@@ -0,0 +1,13 @@
 +What:		/config/usb-gadget/gadget/functions/gud.name
 +Date:		Dec 2020
 +KernelVersion:	5.10
@@ -45,8 +44,11 @@ index 000000000000..64bff7d68b21
 +		backlight_dev - Backlight device name (optional)
 +				The backlight brightness scale should be
 +				perceptual not linear.
++		compression - 8-bit mask of compressions to include.
++		formats - Byte string of GUD_PIXEL_FORMAT_* values to include.
++		connectors - 32-bit mask of connectors to include.
 diff --git a/MAINTAINERS b/MAINTAINERS
-index e7f71ac55f08..abc5fd5d4aab 100644
+index a70443702f51..352b3a11b452 100644
 --- a/MAINTAINERS
 +++ b/MAINTAINERS
 @@ -5530,7 +5530,9 @@ M:	Noralf Trønnes <noralf@tronnes.org>
@@ -60,10 +62,10 @@ index e7f71ac55f08..abc5fd5d4aab 100644
  
  DRM DRIVER FOR GRAIN MEDIA GM12U320 PROJECTORS
 diff --git a/drivers/gpu/drm/gud/gud_gadget.c b/drivers/gpu/drm/gud/gud_gadget.c
-index 3b6259d06834..457d691f5304 100644
+index 93c197fe4354..a6e97845f2f2 100644
 --- a/drivers/gpu/drm/gud/gud_gadget.c
 +++ b/drivers/gpu/drm/gud/gud_gadget.c
-@@ -561,7 +561,7 @@ static int gud_gadget_req_get_descriptor(struct gud_gadget *gdg, unsigned int in
+@@ -591,7 +591,7 @@ static int gud_gadget_req_get_descriptor(struct gud_gadget *gdg, unsigned int in
  	if (index || !size)
  		return -EPROTO;
  
@@ -114,10 +116,10 @@ index 5d3a6cf02218..c5377f44cb4b 100644
 +obj-$(CONFIG_USB_F_GUD)	+= usb_f_gud.o
 diff --git a/drivers/usb/gadget/function/f_gud.c b/drivers/usb/gadget/function/f_gud.c
 new file mode 100644
-index 000000000000..db2bff2441fc
+index 000000000000..0e0e5717c69d
 --- /dev/null
 +++ b/drivers/usb/gadget/function/f_gud.c
-@@ -0,0 +1,743 @@
+@@ -0,0 +1,866 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Copyright (C) 2020 Noralf Trønnes
@@ -176,6 +178,9 @@ index 000000000000..db2bff2441fc
 +
 +	unsigned int drm_dev;
 +	const char *backlight_dev;
++	u8 compression;
++	u32 connectors;
++	u8 formats[GUD_FORMATS_MAX_NUM];
 +};
 +
 +static inline struct f_gud_opts *fi_to_f_gud_opts(const struct usb_function_instance *fi)
@@ -654,7 +659,8 @@ index 000000000000..db2bff2441fc
 +	fgd->status_req->complete = f_gud_status_req_complete;
 +	fgd->status_req->context = fgd;
 +
-+	gdg = gud_gadget_init(opts->drm_dev, opts->backlight_dev, &fgd->max_buffer_size);
++	gdg = gud_gadget_init(opts->drm_dev, opts->backlight_dev, &fgd->max_buffer_size,
++			      opts->compression, opts->formats, opts->connectors);
 +	if (IS_ERR(gdg)) {
 +		ret = PTR_ERR(gdg);
 +		goto fail_free_reqs;
@@ -808,9 +814,126 @@ index 000000000000..db2bff2441fc
 +
 +CONFIGFS_ATTR(f_gud_opts_, backlight_dev);
 +
++static ssize_t f_gud_opts_compression_show(struct config_item *item, char *page)
++{
++	struct f_gud_opts *opts = ci_to_f_gud_opts(item);
++	int ret;
++
++	mutex_lock(&opts->lock);
++	ret = sprintf(page, "0x%02x\n", opts->compression);
++	mutex_unlock(&opts->lock);
++
++	return ret;
++}
++
++static ssize_t f_gud_opts_compression_store(struct config_item *item,
++					    const char *page, size_t len)
++{
++	struct f_gud_opts *opts = ci_to_f_gud_opts(item);
++	int ret;
++
++	mutex_lock(&opts->lock);
++	if (opts->refcnt) {
++		ret = -EBUSY;
++		goto unlock;
++	}
++
++	ret = kstrtou8(page, 0, &opts->compression);
++	if (ret)
++		goto unlock;
++
++	ret = len;
++unlock:
++	mutex_unlock(&opts->lock);
++
++	return ret;
++}
++
++CONFIGFS_ATTR(f_gud_opts_, compression);
++
++static ssize_t f_gud_opts_formats_show(struct config_item *item,
++				       char *page)
++{
++	struct f_gud_opts *opts = ci_to_f_gud_opts(item);
++	int i;
++
++	mutex_lock(&opts->lock);
++	memcpy(page, opts->formats, GUD_FORMATS_MAX_NUM);
++	for (i = GUD_FORMATS_MAX_NUM; i > 0; i--) {
++		if (opts->formats[i - 1])
++			break;
++	}
++	mutex_unlock(&opts->lock);
++
++	return i;
++}
++
++static ssize_t f_gud_opts_formats_store(struct config_item *item,
++					const char *page, size_t len)
++{
++	struct f_gud_opts *opts = ci_to_f_gud_opts(item);
++	int ret;
++
++	mutex_lock(&opts->lock);
++	if (opts->refcnt) {
++		ret = -EBUSY;
++		goto unlock;
++	}
++
++	ret = len;
++	len = min_t(size_t, GUD_FORMATS_MAX_NUM, len);
++	memcpy(opts->formats, page, len);
++unlock:
++	mutex_unlock(&opts->lock);
++
++	return ret;
++}
++
++CONFIGFS_ATTR(f_gud_opts_, formats);
++
++static ssize_t f_gud_opts_connectors_show(struct config_item *item, char *page)
++{
++	struct f_gud_opts *opts = ci_to_f_gud_opts(item);
++	int ret;
++
++	mutex_lock(&opts->lock);
++	ret = sprintf(page, "0x%08x\n", opts->connectors);
++	mutex_unlock(&opts->lock);
++
++	return ret;
++}
++
++static ssize_t f_gud_opts_connectors_store(struct config_item *item,
++					   const char *page, size_t len)
++{
++	struct f_gud_opts *opts = ci_to_f_gud_opts(item);
++	int ret;
++
++	mutex_lock(&opts->lock);
++	if (opts->refcnt) {
++		ret = -EBUSY;
++		goto unlock;
++	}
++
++	ret = kstrtou32(page, 0, &opts->connectors);
++	if (ret)
++		goto unlock;
++
++	ret = len;
++unlock:
++	mutex_unlock(&opts->lock);
++
++	return ret;
++}
++
++CONFIGFS_ATTR(f_gud_opts_, connectors);
++
 +static struct configfs_attribute *f_gud_attrs[] = {
 +	&f_gud_opts_attr_drm_dev,
 +	&f_gud_opts_attr_backlight_dev,
++	&f_gud_opts_attr_compression,
++	&f_gud_opts_attr_formats,
++	&f_gud_opts_attr_connectors,
 +	NULL,
 +};
 +
@@ -850,6 +973,8 @@ index 000000000000..db2bff2441fc
 +
 +	mutex_init(&opts->lock);
 +	opts->func_inst.free_func_inst = f_gud_free_func_inst;
++	opts->compression = ~0;
++	opts->connectors = ~0UL;
 +
 +	config_group_init_type_name(&opts->func_inst.group, "", &f_gud_func_type);
 +

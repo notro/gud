@@ -1,7 +1,7 @@
-From e2590c8f0b3bd6898e5c6076dbf51e76fc5b9f1b Mon Sep 17 00:00:00 2001
+From ca40897ed9ba7b4ffaac2f530a7922f9bd3c9bdb Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
 Date: Tue, 28 Apr 2020 17:34:02 +0200
-Subject: [PATCH v7 07/11] drm/gud: Add functionality for the USB gadget side
+Subject: [PATCH 4/5] drm/gud: Add functionality for the USB gadget side
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -14,13 +14,22 @@ function that runs in interrupt context.
 Since both the gadget side and the DRM side can disable the gadget,
 special care has been taken to make that safe.
 
+Changelog:
+
+20210522:
+  Fix 64-bit build warning
+
+20210601:
+  Use async flushing, speeds up SPI panels.
+  Add configfs filters for: compression, formats, connectors
+
 Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
 ---
  drivers/gpu/drm/gud/Kconfig      |    6 +
  drivers/gpu/drm/gud/Makefile     |    1 +
- drivers/gpu/drm/gud/gud_gadget.c | 1329 ++++++++++++++++++++++++++++++
- include/drm/gud.h                |   11 +
- 4 files changed, 1347 insertions(+)
+ drivers/gpu/drm/gud/gud_gadget.c | 1385 ++++++++++++++++++++++++++++++
+ include/drm/gud.h                |   12 +
+ 4 files changed, 1404 insertions(+)
  create mode 100644 drivers/gpu/drm/gud/gud_gadget.c
 
 diff --git a/drivers/gpu/drm/gud/Kconfig b/drivers/gpu/drm/gud/Kconfig
@@ -48,10 +57,10 @@ index 68a1c622cf33..685003e79c93 100644
 +obj-$(CONFIG_DRM_GUD_GADGET)	+= gud_gadget.o
 diff --git a/drivers/gpu/drm/gud/gud_gadget.c b/drivers/gpu/drm/gud/gud_gadget.c
 new file mode 100644
-index 000000000000..3b6259d06834
+index 000000000000..93c197fe4354
 --- /dev/null
 +++ b/drivers/gpu/drm/gud/gud_gadget.c
-@@ -0,0 +1,1329 @@
+@@ -0,0 +1,1385 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Copyright 2020 Noralf Trønnes
@@ -121,6 +130,7 @@ index 000000000000..3b6259d06834
 +	refcount_t usecnt;
 +	struct drm_client_dev client;
 +	struct backlight_device *backlight;
++	u8 compression;
 +
 +	const u8 *formats;
 +	unsigned int format_count;
@@ -143,6 +153,9 @@ index 000000000000..3b6259d06834
 +
 +	size_t max_buffer_size;
 +	void *work_buf;
++
++	struct work_struct flush_worker;
++	struct drm_rect flush_rect;
 +};
 +
 +static int gud_gadget_probe_connector(struct gud_gadget_connector *gconn)
@@ -304,6 +317,8 @@ index 000000000000..3b6259d06834
 +	u32 format;
 +	int ret;
 +
++	flush_work(&gdg->flush_worker);
++
 +	if (index || size < sizeof(*req))
 +		return -EPROTO;
 +
@@ -425,6 +440,21 @@ index 000000000000..3b6259d06834
 +	return 0;
 +}
 +
++/*
++ * Use a worker so the next frame can be received while the current frame is being flushed out.
++ * SPI panels often use 50ms to flush a full frame.
++ */
++static void gud_gadget_flush_worker(struct work_struct *work)
++{
++	struct gud_gadget *gdg = container_of(work, struct gud_gadget, flush_worker);
++	struct drm_client_buffer *buffer = gdg->buffer ? gdg->buffer : gdg->buffer_check;
++	int ret;
++
++	ret = drm_client_framebuffer_flush(buffer, &gdg->flush_rect);
++	if (ret)
++		pr_debug("%s: drm_client_framebuffer_flush: error=%d\n", __func__, ret);
++}
++
 +static size_t gud_gadget_write_buffer_memcpy(struct drm_client_buffer *buffer,
 +					     const void *src, size_t len,
 +					     struct drm_rect *rect)
@@ -485,6 +515,9 @@ index 000000000000..3b6259d06834
 +
 +	fb = buffer->fb;
 +
++	if (fb->funcs->dirty)
++		flush_work(&gdg->flush_worker);
++
 +	if (compression & GUD_COMPRESSION_LZ4) {
 +		if (len != gdg->set_buffer_compressed_length) {
 +			pr_err("%s: Buffer compressed len differs: %zu != %u\n",
@@ -525,7 +558,12 @@ index 000000000000..3b6259d06834
 +		goto out;
 +	}
 +
-+	ret = drm_client_framebuffer_flush(buffer, rect);
++	if (fb->funcs->dirty) {
++		gdg->flush_rect = *rect;
++		queue_work(system_long_wq, &gdg->flush_worker);
++	}
++
++	ret = 0;
 +out:
 +	refcount_dec(&gdg->usecnt);
 +
@@ -599,6 +637,7 @@ index 000000000000..3b6259d06834
 +{
 +	int ret;
 +
++	cancel_work_sync(&gdg->flush_worker);
 +	ret = drm_client_modeset_disable(&gdg->client);
 +	gud_gadget_delete_buffers(gdg);
 +
@@ -619,7 +658,7 @@ index 000000000000..3b6259d06834
 +	desc.version = 1;
 +	desc.max_buffer_size = cpu_to_le32(gdg->max_buffer_size);
 +	desc.flags = cpu_to_le32(GUD_DISPLAY_FLAG_STATUS_ON_SET);
-+	desc.compression = GUD_COMPRESSION_LZ4;
++	desc.compression = GUD_COMPRESSION_LZ4 & gdg->compression;
 +
 +	desc.min_width = cpu_to_le32(drm->mode_config.min_width);
 +	desc.max_width = cpu_to_le32(drm->mode_config.max_width);
@@ -972,7 +1011,7 @@ index 000000000000..3b6259d06834
 +}
 +EXPORT_SYMBOL(gud_gadget_req_set);
 +
-+static int gud_gadget_get_formats(struct gud_gadget *gdg, u8 *max_cpp)
++static int gud_gadget_get_formats(struct gud_gadget *gdg, u8 *max_cpp, u8 *format_filter)
 +{
 +	struct drm_device *drm = gdg->client.dev;
 +	struct drm_plane *plane;
@@ -1002,6 +1041,22 @@ index 000000000000..3b6259d06834
 +		format = gud_from_fourcc(info->format);
 +		if (!format)
 +			continue;
++
++		if (format_filter[0]) {
++			bool found = false;
++			unsigned int j;
++
++			for (j = 0; j < GUD_FORMATS_MAX_NUM; j++) {
++				if (!format_filter[j])
++					break;
++				if (format_filter[j] == format) {
++					found = true;
++					break;
++				}
++			}
++			if (!found)
++				continue;
++		}
 +
 +		if (*max_cpp < info->cpp[0])
 +			*max_cpp = info->cpp[0];
@@ -1185,7 +1240,7 @@ index 000000000000..3b6259d06834
 +	return ret;
 +}
 +
-+static int gud_gadget_get_connectors(struct gud_gadget *gdg)
++static int gud_gadget_get_connectors(struct gud_gadget *gdg, u32 connectors_mask)
 +{
 +	struct gud_gadget_connector *connectors = NULL;
 +	struct drm_connector_list_iter conn_iter;
@@ -1197,6 +1252,9 @@ index 000000000000..3b6259d06834
 +	drm_connector_list_iter_begin(drm, &conn_iter);
 +	drm_client_for_each_connector_iter(connector, &conn_iter) {
 +		struct gud_gadget_connector *tmp, *gconn;
++
++		if (!((BIT(connector->index)) & connectors_mask))
++			continue;
 +
 +		tmp = krealloc(connectors, (connector_count + 1) * sizeof(*connectors),
 +			       GFP_KERNEL | __GFP_ZERO);
@@ -1216,6 +1274,9 @@ index 000000000000..3b6259d06834
 +			break;
 +	}
 +	drm_connector_list_iter_end(&conn_iter);
++
++	if (!connector_count)
++		ret = -ENOENT;
 +
 +	gdg->connectors = connectors;
 +	gdg->connector_count = connector_count;
@@ -1292,7 +1353,8 @@ index 000000000000..3b6259d06834
 +};
 +
 +struct gud_gadget *gud_gadget_init(unsigned int minor_id, const char *backlight,
-+				   size_t *max_buffer_size)
++				   size_t *max_buffer_size, u8 compression, u8 *formats,
++				   u32 connectors)
 +{
 +	struct gud_gadget *gdg;
 +	u8 max_cpp;
@@ -1301,6 +1363,9 @@ index 000000000000..3b6259d06834
 +	gdg = kzalloc(sizeof(*gdg), GFP_KERNEL);
 +	if (!gdg)
 +		return ERR_PTR(-ENOMEM);
++
++	INIT_WORK(&gdg->flush_worker, gud_gadget_flush_worker);
++	gdg->compression = compression;
 +
 +	ret = drm_client_init_from_id(minor_id, &gdg->client, "gud-drm-gadget", &gdg_client_funcs);
 +	if (ret) {
@@ -1323,7 +1388,7 @@ index 000000000000..3b6259d06834
 +		}
 +	}
 +
-+	ret = gud_gadget_get_formats(gdg, &max_cpp);
++	ret = gud_gadget_get_formats(gdg, &max_cpp, formats);
 +	if (ret) {
 +		pr_err("Failed to get formats\n");
 +		goto error_release;
@@ -1347,7 +1412,7 @@ index 000000000000..3b6259d06834
 +		goto error_release;
 +	}
 +
-+	ret = gud_gadget_get_connectors(gdg);
++	ret = gud_gadget_get_connectors(gdg, connectors);
 +	if (ret) {
 +		pr_err("Failed to get connectors\n");
 +		goto error_release;
@@ -1382,17 +1447,18 @@ index 000000000000..3b6259d06834
 +MODULE_AUTHOR("Noralf Trønnes");
 +MODULE_LICENSE("GPL");
 diff --git a/include/drm/gud.h b/include/drm/gud.h
-index a078aad63a31..136c1e36f726 100644
+index 0b46b54fe56e..2fb0ad8ad55f 100644
 --- a/include/drm/gud.h
 +++ b/include/drm/gud.h
-@@ -330,4 +330,15 @@ struct gud_state_req {
+@@ -330,4 +330,16 @@ struct gud_state_req {
  /* Enable/disable display/output (DPMS), value is u8: 0/1 */
  #define GUD_REQ_SET_DISPLAY_ENABLE			0x64
  
 +struct gud_gadget;
 +
 +struct gud_gadget *gud_gadget_init(unsigned int minor_id, const char *backlight,
-+				   size_t *max_buffer_size);
++				   size_t *max_buffer_size, u8 compression, u8 *formats,
++				   u32 connectors);
 +void gud_gadget_fini(struct gud_gadget *gdg);
 +int gud_gadget_disable_pipe(struct gud_gadget *gdg);
 +int gud_gadget_req_get(struct gud_gadget *gdg, u8 request, u16 index, void *data, size_t size);
