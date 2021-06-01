@@ -1,1 +1,1 @@
-gud_gadget.force_rg16=1 loglevel=3 console=tty1 console=ttyAMA0,115200 vt.global_cursor_default=0 fbcon=logo-pos:center,logo-count:1
+rgb565 loglevel=3 console=tty1 console=ttyAMA0,115200 vt.global_cursor_default=0 fbcon=logo-pos:center,logo-count:1
