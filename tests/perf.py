@@ -9,6 +9,7 @@ TEST_MODES = ((1920, 1080), (1024, 768), (800, 600), (640, 480))
 def states(dev, preferred_mode, fmt):
     connectors = [connector for connector in dev.connectors if connector.connected]
     if not connectors:
+        print("Didn't find any connectors that were in a connected state")
         return
     connector = connectors[0]
 
@@ -69,6 +70,10 @@ def main(args):
             return
 
     gud = find_first_setup()
+    if not gud:
+        print('Failed to find a GUD device')
+        return
+
     gud.controller_enable()
 
     print(f'Iterations: {args.iterations}\n')
