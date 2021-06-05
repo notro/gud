@@ -1,0 +1,57 @@
+#!/bin/sh
+
+# Linux Gadget Zero
+
+UDC=$(ls /sys/class/udc | cut -f1 | grep -v usbip | head -n1)
+
+start() {
+	cd /sys/kernel/config/usb_gadget
+	mkdir g_zero
+	cd g_zero
+
+	echo 0x0525 > idVendor
+	echo 0xa4a0 > idProduct
+
+	mkdir strings/0x409
+	echo "" > strings/0x409/manufacturer
+	echo "Gadget Zero" > strings/0x409/product
+	echo "0123456789.0123456789.0123456789" > strings/0x409/serialnumber
+
+	mkdir configs/c.1
+	echo 500 > configs/c.1/MaxPower
+
+	mkdir functions/SourceSink.0
+	echo 4194304 > functions/SourceSink.0/bulk_buflen # 4MB ~= 1920*1080*2
+	echo 1 > functions/SourceSink.0/bulk_qlen # Queue up only one request like the f_gud does
+
+	ln -s functions/SourceSink.0/ configs/c.1/
+
+	echo "$UDC" > UDC
+}
+
+stop() {
+	cd /sys/kernel/config/usb_gadget
+	if [ -d "g_zero" ]; then
+		cd g_zero
+		echo > UDC 2> /dev/null
+		find configs/c.1/ -maxdepth 1 -type l -exec rm -f {} +
+		rmdir configs/c.1
+		[ -e functions/SourceSink.0 ] && rmdir functions/SourceSink.0
+
+		rmdir strings/0x409
+		cd ..
+		rmdir g_zero
+	fi
+}
+
+case "$1" in
+  start)
+	start;;
+  stop)
+	stop;;
+  *)
+	echo "Usage: $0 {start|stop}"
+	exit 1
+esac
+
+exit $?
