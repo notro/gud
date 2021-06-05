@@ -45,19 +45,23 @@ def compression_ratio(dev, state, ratio, iterations):
     length = img.random(ratio)
     elapsed = []
     for x in range(iterations):
-        t, parts = img.flush()
+        t, parts = img.flush(use_cached=x)
         elapsed.append(t)
+    if iterations > 5:
+        elapsed.pop(0) # Remove the outlier (includes PIL image conversion time)
     return min(elapsed), statistics.mean(elapsed), max(elapsed), parts
 
 def no_compression(dev, state, iterations):
+    if state.format < GUD_PIXEL_FORMAT_XRGB1111:
+        img = checkerboard_image(dev, state.format, state.mode)
+    else:
+        img = smpte_image(dev, state.format, state.mode, text=str(state))
     elapsed = []
     for x in range(iterations):
-        if state.format < GUD_PIXEL_FORMAT_XRGB1111:
-            img = checkerboard_image(dev, state.format, state.mode)
-        else:
-            img = smpte_image(dev, state.format, state.mode, text=str(state) + f' :: {x + 1}')
-        t, parts = img.flush(compress=False)
+        t, parts = img.flush(compress=False, use_cached=x)
         elapsed.append(t)
+    if iterations > 5:
+        elapsed.pop(0) # Remove the outlier (includes PIL image conversion time)
     return min(elapsed), statistics.mean(elapsed), max(elapsed), parts
 
 

@@ -20,6 +20,7 @@ class Image(object):
         self.mode = mode
         self.width = mode.hdisplay
         self.height = mode.vdisplay
+        self._cache = {}
 
         if fmt == GUD_PIXEL_FORMAT_RGB565:
             self.cpp = 2
@@ -206,7 +207,7 @@ class Image(object):
 
         return data
 
-    def flush(self, x=0, y=0, width=None, height=None, compress=True):
+    def flush(self, x=0, y=0, width=None, height=None, compress=True, use_cached=False):
         if self.dev.descriptor.flags & GUD_DISPLAY_FLAG_FULL_UPDATE:
             x = 0
             y = 0
@@ -232,18 +233,21 @@ class Image(object):
         if self.dev.max_buffer_size < lines * self.pitch:
             lines = self.dev.max_buffer_size // self.pitch
 
-        t = 0
+        start = timer()
+
         parts = (height + lines - 1) // lines
         for i in range(parts):
-            t += self._flush(x, y + (i * lines), width, min(lines, height), compress)
+            self._flush(i, x, y + (i * lines), width, min(lines, height), compress, use_cached)
             height -= lines
 
-        return t, parts
+        return timer() - start, parts
 
-    def _flush(self, x, y, width, height, compress):
-        buf = self.data(x, y, width, height)
-
-        start = timer()
+    def _flush(self, i, x, y, width, height, compress, use_cached):
+        if use_cached:
+            buf = self._cache[i]
+        else:
+            buf = self.data(x, y, width, height)
+            self._cache[i] = buf
 
         if not self.dev.descriptor.flags & GUD_DISPLAY_FLAG_FULL_UPDATE:
             req = gud_drm_req_set_buffer()
@@ -265,7 +269,6 @@ class Image(object):
             self.dev.req_set_buffer(req)
 
         self.dev.bulk_write(buf, len(buf))
-        return timer() - start
 
     def __str__(self):
         return f'{self.mode.hdisplay}x{self.mode.vdisplay} {format_to_name(self.format)}'
