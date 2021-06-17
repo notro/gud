@@ -1,0 +1,5 @@
+config BR2_PACKAGE_HIDG_TOUCH
+	bool "hidg-touch"
+	select BR2_PACKAGE_LIBEVDEV
+	help
+	  Creates a bridge between a USB HID gadget and a touch device.
