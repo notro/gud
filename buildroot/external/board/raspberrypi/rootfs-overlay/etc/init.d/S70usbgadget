@@ -83,8 +83,23 @@ start() {
 		ln -s functions/gud.0/ configs/c.1/
 	fi
 
+	if [ -x /usr/bin/hidg-touch ]; then
+		touch=$(/usr/bin/hidg-touch --find)
+		if [ -n "$touch" ]; then
+			mkdir functions/hid.0
+			echo 1 > functions/hid.0/protocol
+			echo 1 > functions/hid.0/subclass
+			/usr/bin/hidg-touch --length "$touch" > functions/hid.0/report_length
+			/usr/bin/hidg-touch --desc "$touch" > functions/hid.0/report_desc
+
+			ln -s functions/hid.0/ configs/c.1/
+		fi
+	fi
+
 	echo "$UDC" > UDC
 	status=$?
+
+	[ -n "$touch" ] && /usr/bin/hidg-touch "$touch" /dev/hidg0 &
 
 	if [ "$UDC" = "usbip-vudc.0" ]; then
 		/usr/sbin/usbipd -D --device --pid
@@ -104,6 +119,11 @@ stop() {
 		echo > UDC 2> /dev/null
 		find configs/c.1/ -maxdepth 1 -type l -exec rm -f {} +
 		rmdir configs/c.1
+
+		if [ -e functions/hid.0 ]; then
+			pkill -f hidg-touch
+			rmdir functions/hid.0
+		fi
 		[ -e functions/gud.0 ] && rmdir functions/gud.0
 
 		if [ -e functions/acm.usb0 ]; then
