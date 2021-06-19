@@ -1,0 +1,296 @@
+From 6f20bb63ae5646a839ebc9498e05fe20be459be3 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
+Date: Fri, 18 Jun 2021 10:32:02 +0200
+Subject: [PATCH] overlays: Convert rpi-display to use mipi_dbi_drv
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This switches it over from fbtft/fbdev to DRM.
+Backlight is also changed to become PWM controlled.
+Due to difference in PWM pin node naming, a -pi4 version
+was necessary: pwm0_gpio18 vs. pwm0_0_gpio18.
+
+Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+---
+ arch/arm/boot/dts/overlays/Makefile           |   1 +
+ .../boot/dts/overlays/rpi-display-overlay.dts |  85 ++++++++---
+ .../dts/overlays/rpi-display-pi4-overlay.dts  | 136 ++++++++++++++++++
+ 3 files changed, 202 insertions(+), 20 deletions(-)
+ create mode 100644 arch/arm/boot/dts/overlays/rpi-display-pi4-overlay.dts
+
+diff --git a/arch/arm/boot/dts/overlays/Makefile b/arch/arm/boot/dts/overlays/Makefile
+index 823f14ee96ff..fc482e5802e5 100644
+--- a/arch/arm/boot/dts/overlays/Makefile
++++ b/arch/arm/boot/dts/overlays/Makefile
+@@ -154,6 +154,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
+ 	rpi-cirrus-wm5102.dtbo \
+ 	rpi-dac.dtbo \
+ 	rpi-display.dtbo \
++	rpi-display-pi4.dtbo \
+ 	rpi-ft5406.dtbo \
+ 	rpi-poe.dtbo \
+ 	rpi-proto.dtbo \
+diff --git a/arch/arm/boot/dts/overlays/rpi-display-overlay.dts b/arch/arm/boot/dts/overlays/rpi-display-overlay.dts
+index de87432ff2be..86fe6f0e3c75 100644
+--- a/arch/arm/boot/dts/overlays/rpi-display-overlay.dts
++++ b/arch/arm/boot/dts/overlays/rpi-display-overlay.dts
+@@ -34,9 +34,9 @@
+ 		target = <&gpio>;
+ 		__overlay__ {
+ 			rpi_display_pins: rpi_display_pins {
+-				brcm,pins = <18 23 24 25>;
+-				brcm,function = <1 1 1 0>; /* out out out in */
+-				brcm,pull = <0 0 0 2>; /* - - - up */
++				brcm,pins = <23 24 25>;
++				brcm,function = < 1 1 0>; /* out out in */
++				brcm,pull = <0 0 2>; /* - - up */
+ 			};
+ 		};
+ 	};
+@@ -49,20 +49,44 @@
+ 			#size-cells = <0>;
+ 
+ 			rpidisplay: rpi-display@0{
+-				compatible = "ilitek,ili9341";
++				compatible = "mipi_dbi_drv";
+ 				reg = <0>;
+ 				pinctrl-names = "default";
+ 				pinctrl-0 = <&rpi_display_pins>;
+ 
+-				spi-max-frequency = <32000000>;
+-				rotate = <270>;
+-				bgr;
+-				fps = <30>;
+-				buswidth = <8>;
+-				reset-gpios = <&gpio 23 1>;
++				spi-max-frequency = <70000000>;
++				reset-gpios = <&gpio 23 0>;
+ 				dc-gpios = <&gpio 24 0>;
+-				led-gpios = <&gpio 18 0>;
+-				debug = <0>;
++				backlight = <&backlight>;
++
++				width = <320>;
++				height = <240>;
++
++				init = <0x1000028
++					0x10000cf 0x00 0x83 0x30
++					0x10000ed 0x64 0x03 0x12 0x81
++					0x10000e8 0x85 0x01 0x79
++					0x10000cb 0x39 0x2c 0x00 0x34 0x02
++					0x10000f7 0x20
++					0x10000ea 0x00 0x00
++					0x10000c0 0x26
++					0x10000c1 0x11
++					0x10000c5 0x35 0x3e
++					0x10000c7 0xbe
++					0x100003a 0x55
++					0x1000036 0x28
++					0x10000b1 0x00 0x1b
++					0x1000026 0x01
++					0x10000f2 0x08
++					0x1000026 0x01
++					0x10000e0 0x1f 0x1a 0x18 0x0a 0x0f 0x06 0x45 0x87 0x32 0x0a 0x07 0x02 0x07 0x05 0x00
++					0x10000e1 0x00 0x25 0x27 0x05 0x10 0x09 0x3a 0x78 0x4d 0x05 0x18 0x0d 0x38 0x3a 0x1f
++					0x10000b7 0x07
++					0x10000b6 0x0a 0x82 0x27 0x00
++					0x1000011
++					0x2000064
++					0x1000029
++					0x2000064>;
+ 			};
+ 
+ 			rpidisplay_ts: rpi-display-ts@1 {
+@@ -75,17 +99,38 @@
+ 				pendown-gpio = <&gpio 25 1>;
+ 				ti,x-plate-ohms = /bits/ 16 <60>;
+ 				ti,pressure-max = /bits/ 16 <255>;
++				ti,x-min = /bits/ 16 <200>;
++				ti,y-min = /bits/ 16 <200>;
++				ti,x-max = /bits/ 16 <3900>;
++				ti,y-max = /bits/ 16 <3900>;
++				touchscreen-inverted-x;
++				touchscreen-swapped-x-y;
+ 			};
+ 		};
+ 	};
++
++	fragment@5 {
++		target = <&pwm>;
++		__overlay__ {
++			pinctrl-names = "default";
++			pinctrl-0 = <&pwm0_gpio18>;
++			status = "okay";
++		};
++	};
++
++	fragment@6 {
++		target-path = "/soc";
++		__overlay__ {
++			backlight: backlight {
++				compatible = "pwm-backlight";
++				pwms = <&pwm 0 5000000>;
++				// pwm_bl uses CIE 1931 to construct a brightness table
++			};
++		};
++	};
++
+ 	__overrides__ {
+-		speed =     <&rpidisplay>,"spi-max-frequency:0";
+-		rotate =    <&rpidisplay>,"rotate:0";
+-		fps =       <&rpidisplay>,"fps:0";
+-		debug =     <&rpidisplay>,"debug:0";
+-		xohms =     <&rpidisplay_ts>,"ti,x-plate-ohms;0";
+-		swapxy =    <&rpidisplay_ts>,"ti,swap-xy?";
+-		backlight = <&rpidisplay>,"led-gpios:4",
+-		            <&rpi_display_pins>,"brcm,pins:0";
++		speed = <&rpidisplay>,"spi-max-frequency:0";
++		rotation = <&rpidisplay>,"rotation:0";
+ 	};
+ };
+diff --git a/arch/arm/boot/dts/overlays/rpi-display-pi4-overlay.dts b/arch/arm/boot/dts/overlays/rpi-display-pi4-overlay.dts
+new file mode 100644
+index 000000000000..b4441e5a4d8e
+--- /dev/null
++++ b/arch/arm/boot/dts/overlays/rpi-display-pi4-overlay.dts
+@@ -0,0 +1,136 @@
++/*
++ * Device Tree overlay for rpi-display by Watterott
++ *
++ */
++
++/dts-v1/;
++/plugin/;
++
++/ {
++	compatible = "brcm,bcm2835";
++
++	fragment@0 {
++		target = <&spi0>;
++		__overlay__ {
++			status = "okay";
++		};
++	};
++
++	fragment@1 {
++		target = <&spidev0>;
++		__overlay__ {
++			status = "disabled";
++		};
++	};
++
++	fragment@2 {
++		target = <&spidev1>;
++		__overlay__ {
++			status = "disabled";
++		};
++	};
++
++	fragment@3 {
++		target = <&gpio>;
++		__overlay__ {
++			rpi_display_pins: rpi_display_pins {
++				brcm,pins = <23 24 25>;
++				brcm,function = < 1 1 0>; /* out out in */
++				brcm,pull = <0 0 2>; /* - - up */
++			};
++		};
++	};
++
++	fragment@4 {
++		target = <&spi0>;
++		__overlay__ {
++			/* needed to avoid dtc warning */
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			rpidisplay: rpi-display@0{
++				compatible = "mipi_dbi_drv";
++				reg = <0>;
++				pinctrl-names = "default";
++				pinctrl-0 = <&rpi_display_pins>;
++
++				spi-max-frequency = <70000000>;
++				reset-gpios = <&gpio 23 0>;
++				dc-gpios = <&gpio 24 0>;
++				backlight = <&backlight>;
++
++				width = <320>;
++				height = <240>;
++
++				init = <0x1000028
++					0x10000cf 0x00 0x83 0x30
++					0x10000ed 0x64 0x03 0x12 0x81
++					0x10000e8 0x85 0x01 0x79
++					0x10000cb 0x39 0x2c 0x00 0x34 0x02
++					0x10000f7 0x20
++					0x10000ea 0x00 0x00
++					0x10000c0 0x26
++					0x10000c1 0x11
++					0x10000c5 0x35 0x3e
++					0x10000c7 0xbe
++					0x100003a 0x55
++					0x1000036 0x28
++					0x10000b1 0x00 0x1b
++					0x1000026 0x01
++					0x10000f2 0x08
++					0x1000026 0x01
++					0x10000e0 0x1f 0x1a 0x18 0x0a 0x0f 0x06 0x45 0x87 0x32 0x0a 0x07 0x02 0x07 0x05 0x00
++					0x10000e1 0x00 0x25 0x27 0x05 0x10 0x09 0x3a 0x78 0x4d 0x05 0x18 0x0d 0x38 0x3a 0x1f
++					0x10000b7 0x07
++					0x10000b6 0x0a 0x82 0x27 0x00
++					0x1000011
++					0x2000064
++					0x1000029
++					0x2000064>;
++			};
++
++			rpidisplay_ts: rpi-display-ts@1 {
++				compatible = "ti,ads7846";
++				reg = <1>;
++
++				spi-max-frequency = <2000000>;
++				interrupts = <25 2>; /* high-to-low edge triggered */
++				interrupt-parent = <&gpio>;
++				pendown-gpio = <&gpio 25 1>;
++				ti,x-plate-ohms = /bits/ 16 <60>;
++				ti,pressure-max = /bits/ 16 <255>;
++				ti,x-min = /bits/ 16 <200>;
++				ti,y-min = /bits/ 16 <200>;
++				ti,x-max = /bits/ 16 <3900>;
++				ti,y-max = /bits/ 16 <3900>;
++				touchscreen-inverted-x;
++				touchscreen-swapped-x-y;
++			};
++		};
++	};
++
++	fragment@5 {
++		target = <&pwm>;
++		__overlay__ {
++			pinctrl-names = "default";
++			pinctrl-0 = <&pwm0_0_gpio18>;
++			status = "okay";
++		};
++	};
++
++	fragment@6 {
++		target-path = "/soc";
++		__overlay__ {
++			backlight: backlight {
++				compatible = "pwm-backlight";
++				pwms = <&pwm 0 5000000>;
++				// pwm_bl uses CIE 1931 to construct a brightness table
++			};
++		};
++	};
++
++	__overrides__ {
++		speed = <&rpidisplay>,"spi-max-frequency:0";
++		rotation = <&rpidisplay>,"rotation:0";
++	};
++};
+-- 
+2.23.0
+
