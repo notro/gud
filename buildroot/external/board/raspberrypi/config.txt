@@ -10,6 +10,7 @@ disable_fw_kms_setup=1
 [pi0]
 dtoverlay=dwc2,dr_mode=otg
 dtoverlay=vc4-kms-v3d,noaudio,nocomposite
+#dtoverlay=vc4-fkms-v3d
 
 [pi0w]
 dtoverlay=disable-bt
@@ -18,3 +19,4 @@ dtoverlay=disable-bt
 dtoverlay=disable-bt
 dtoverlay=dwc2,dr_mode=peripheral
 dtoverlay=vc4-kms-v3d-pi4,noaudio
+#dtoverlay=vc4-fkms-v3d
