@@ -43,8 +43,7 @@ buildroot_source()
 		tar xf ${BUILDROOT_SRC_FILE}
 
 		info "Bump RPI_FIRMWARE_VERSION"
-		sed -i s/d016a6eb01c8c7326a89cb42809fed2a21525de5/20081d8e86119e95e516526700be62049850c01a/ ${BUILDROOT_SRC_DIR}/package/rpi-firmware/rpi-firmware.mk
-		rm ${BUILDROOT_SRC_DIR}/package/rpi-firmware/rpi-firmware.hash
+		patch -d ${BUILDROOT_SRC_DIR} -p1 < ${SCRIPT_DIR}/patches/0001-package-rpi-firmware-bump-version-to-c5b3d8e.patch
 	fi
 }
 
