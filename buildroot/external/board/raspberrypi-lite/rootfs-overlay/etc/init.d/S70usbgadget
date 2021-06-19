@@ -69,10 +69,21 @@ start() {
 		# GUD_PIXEL_FORMAT_RGB565
 		printf "@" > functions/gud.0/formats
 	fi
+	if grep -q 'connectors=' /proc/cmdline; then
+		cat /proc/cmdline | xargs -n1 | grep 'connectors=' | cut -d'=' -f2 > functions/gud.0/connectors
+	fi
 	ln -s functions/gud.0/ configs/c.1/
 
 	if [ -x /usr/bin/hidg-touch ]; then
-		touch=$(/usr/bin/hidg-touch --find)
+		if grep -q 'touch_dev=no' /proc/cmdline; then
+			touch=
+		elif grep -q 'touch_dev=' /proc/cmdline; then
+			num=$(cat /proc/cmdline | xargs -n1 | grep 'touch_dev=' | cut -d'=' -f2)
+			touch="/dev/input/event$num"
+		else
+			touch=$(/usr/bin/hidg-touch --find)
+		fi
+
 		if [ -n "$touch" ]; then
 			mkdir functions/hid.0
 			echo 1 > functions/hid.0/protocol
