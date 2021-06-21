@@ -199,8 +199,11 @@ class Device(object):
 
     def config(self):
         self.dev.set_configuration()
-        cfg = self.dev.get_active_configuration()
-        self.interface = cfg[(0,0)]
+        self.interface = None
+        for itf in self.dev.get_active_configuration():
+            if itf.bInterfaceClass == 0xff:
+                self.interface = itf
+        assert self.interface is not None
         self.ep = usb.util.find_descriptor(
             self.interface,
             # match the first OUT endpoint
