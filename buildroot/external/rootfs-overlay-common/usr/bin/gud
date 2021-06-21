@@ -2,52 +2,64 @@
 
 # USB Display Gadget
 
-. /etc/os-release
+VID=0x1d50
+PID=0x614d
 
-HW=$(cat /proc/cpuinfo | grep ^Hardware | cut -d":" -f2 | tr -d '[:space:]')
-SN=$(cat /proc/cpuinfo | grep ^Serial | cut -d":" -f2 | tr -d '[:space:]')
+MANUFACTURER=
+PRODUCT="GUD USB Display Gadget"
+MAXPOWER=500 # mA
+SERIALNUMBER=$(cat /proc/cpuinfo | grep ^Serial | cut -d":" -f2 | tr -d '[:space:]')
 
-MANUFACTURER="Raspberry Pi"
-
-if [ "$HW" = "BCM2835" ]; then
-	PRODUCT="Raspberry Pi Zero Display Gadget"
-	MAXPOWER=120 # mA
-elif [ "$HW" = "BCM2711" ]; then
-	PRODUCT="Raspberry Pi 4 Display Gadget"
-	MAXPOWER=500 # mA
-else
-	PRODUCT="$HW Display Gadget"
-	MAXPOWER=500 # mA
-fi
-
-if [ -f /etc/network/interfaces ]; then
-	UDC="usbip-vudc.0"
-else
-	UDC=$(ls /sys/class/udc | cut -f1 | grep -v usbip | head -n1)
-fi
+UDC=$(ls /sys/class/udc | cut -f1 | grep -v usbip | head -n1)
 
 if grep -q 'drm_dev=' /proc/cmdline; then
-	drm_dev=$(cat /proc/cmdline | xargs -n1 | grep 'drm_dev=' | cut -d'=' -f2)
+	DRM_DEV=$(cat /proc/cmdline | xargs -n1 | grep 'drm_dev=' | cut -d'=' -f2)
 else
-	drm_dev=0
+	DRM_DEV=0
+fi
+if grep -q nocompression /proc/cmdline; then
+	COMPRESSION=0
+fi
+if grep -q rgb565 /proc/cmdline; then
+	# GUD_PIXEL_FORMAT_RGB565
+	FORMATS="@"
+fi
+if grep -q 'connectors=' /proc/cmdline; then
+	CONNECTORS=$(cat /proc/cmdline | xargs -n1 | grep 'connectors=' | cut -d'=' -f2)
 fi
 
-backlight_dev=
 cd /sys/class/backlight/
 for d in * ; do
 	if [ -d "$d" ] && [ $(cat "$d/max_brightness") -gt 1 ]; then
-		backlight_dev="$d"
+		BACKLIGHT_DEV="$d"
 		break
 	fi
 done
+
+if [ -x /usr/bin/hidg-touch ]; then
+	if grep -q 'touch_dev=no' /proc/cmdline; then
+		TOUCH_DEV=
+	elif grep -q 'touch_dev=' /proc/cmdline; then
+		num=$(cat /proc/cmdline | xargs -n1 | grep 'touch_dev=' | cut -d'=' -f2)
+		TOUCH_DEV="/dev/input/event$num"
+	else
+		TOUCH_DEV=$(/usr/bin/hidg-touch --find)
+	fi
+fi
+
+if grep -q gcon /proc/cmdline; then
+	GCON=yes
+fi
+
+. "/etc/default/gud"
 
 start() {
 	cd /sys/kernel/config/usb_gadget
 	mkdir g1
 	cd g1
 
-	echo 0x1d50 > idVendor
-	echo 0x614d > idProduct
+	echo "$VID" > idVendor
+	echo "$PID" > idProduct
 
 	if [ -n "$GUD_VERSION_BCD" ]; then
 		echo "$GUD_VERSION_BCD" > bcdDevice
@@ -56,61 +68,51 @@ start() {
 	mkdir strings/0x409
 	echo "$MANUFACTURER" > strings/0x409/manufacturer
 	echo "$PRODUCT" > strings/0x409/product
-	echo "$SN" > strings/0x409/serialnumber
+	echo "$SERIALNUMBER" > strings/0x409/serialnumber
 
 	mkdir configs/c.1
 	echo "$MAXPOWER" > configs/c.1/MaxPower
 
-	if [ -f /boot/gadget_console ]; then
+	if [ "$GCON" = "yes" ]; then
 		# Serial
 		mkdir functions/acm.usb0
 		ln -s functions/acm.usb0/ configs/c.1/
 	fi
 
-	if [ -e /sys/class/drm/card0 ]; then
+	if [ -n "$DRM_DEV" ]; then
 		mkdir functions/gud.0
-		echo "$drm_dev" > functions/gud.0/drm_dev
-		if [ -n "$backlight_dev" ]; then
-			echo "$backlight_dev" > functions/gud.0/backlight_dev
+		echo "$DRM_DEV" > functions/gud.0/drm_dev
+		if [ -n "$BACKLIGHT_DEV" ]; then
+			echo "$BACKLIGHT_DEV" > functions/gud.0/backlight_dev
 		fi
-		if grep -q nocompression /proc/cmdline; then
-			echo 0 > functions/gud.0/compression
+		if [ -n "$COMPRESSION" ]; then
+			echo "$COMPRESSION" > functions/gud.0/compression
 		fi
-		if grep -q rgb565 /proc/cmdline; then
-			# GUD_PIXEL_FORMAT_RGB565
-			printf "@" > functions/gud.0/formats
+		if [ -n "$FORMATS" ]; then
+			printf "$FORMATS" > functions/gud.0/formats
 		fi
-		if grep -q 'connectors=' /proc/cmdline; then
-			cat /proc/cmdline | xargs -n1 | grep 'connectors=' | cut -d'=' -f2 > functions/gud.0/connectors
+		if [ -n "$CONNECTORS" ]; then
+			echo "$CONNECTORS" > functions/gud.0/connectors
 		fi
 		ln -s functions/gud.0/ configs/c.1/
 	fi
 
-	if [ -x /usr/bin/hidg-touch ]; then
-		if grep -q 'touch_dev=no' /proc/cmdline; then
-			touch=
-		elif grep -q 'touch_dev=' /proc/cmdline; then
-			num=$(cat /proc/cmdline | xargs -n1 | grep 'touch_dev=' | cut -d'=' -f2)
-			touch="/dev/input/event$num"
-		else
-			touch=$(/usr/bin/hidg-touch --find)
-		fi
+	if [ -x /usr/bin/hidg-touch -a -n "$TOUCH_DEV" ]; then
+		mkdir functions/hid.0
+		echo 1 > functions/hid.0/protocol
+		echo 1 > functions/hid.0/subclass
+		/usr/bin/hidg-touch --length "$TOUCH_DEV" > functions/hid.0/report_length
+		/usr/bin/hidg-touch --desc "$TOUCH_DEV" > functions/hid.0/report_desc
 
-		if [ -n "$touch" ]; then
-			mkdir functions/hid.0
-			echo 1 > functions/hid.0/protocol
-			echo 1 > functions/hid.0/subclass
-			/usr/bin/hidg-touch --length "$touch" > functions/hid.0/report_length
-			/usr/bin/hidg-touch --desc "$touch" > functions/hid.0/report_desc
-
-			ln -s functions/hid.0/ configs/c.1/
-		fi
+		ln -s functions/hid.0/ configs/c.1/
 	fi
 
 	echo "$UDC" > UDC
 	status=$?
 
-	[ -n "$touch" ] && /usr/bin/hidg-touch "$touch" /dev/hidg0 &
+	if [ -x /usr/bin/hidg-touch -a -n "$TOUCH_DEV" ]; then
+		/usr/bin/hidg-touch "$TOUCH_DEV" /dev/hidg0 &
+	fi
 
 	if [ "$UDC" = "usbip-vudc.0" ]; then
 		/usr/sbin/usbipd -D --device --pid
@@ -135,6 +137,7 @@ stop() {
 			pkill -f hidg-touch
 			rmdir functions/hid.0
 		fi
+
 		[ -e functions/gud.0 ] && rmdir functions/gud.0
 
 		if [ -e functions/acm.usb0 ]; then

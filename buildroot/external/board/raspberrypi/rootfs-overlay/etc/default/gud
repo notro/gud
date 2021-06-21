@@ -1,0 +1,20 @@
+. /etc/os-release
+
+HW=$(cat /proc/cpuinfo | grep ^Hardware | cut -d":" -f2 | tr -d '[:space:]')
+
+MANUFACTURER="Raspberry Pi"
+
+if [ "$HW" = "BCM2835" ]; then
+	PRODUCT="Raspberry Pi Zero Display Gadget"
+	MAXPOWER=120 # mA
+elif [ "$HW" = "BCM2711" ]; then
+	PRODUCT="Raspberry Pi 4 Display Gadget"
+	MAXPOWER=500 # mA
+else
+	PRODUCT="$HW Display Gadget"
+	MAXPOWER=500 # mA
+fi
+
+if [ -f /etc/network/interfaces ] && grep -vq nousbip /proc/cmdline; then
+	UDC="usbip-vudc.0"
+fi

@@ -1,0 +1,8 @@
+. /etc/os-release
+
+MANUFACTURER="Radxa"
+PRODUCT="ROCK Pi 4 USB Display Gadget"
+MAXPOWER=120 # mA
+
+# This image has not been configured to support a gadget console
+GCON=no

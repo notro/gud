@@ -1,0 +1,19 @@
+. /etc/os-release
+
+HW=$(cat /proc/cpuinfo | grep ^Hardware | cut -d":" -f2 | tr -d '[:space:]')
+
+MANUFACTURER="Raspberry Pi"
+
+if [ "$HW" = "BCM2835" ]; then
+	PRODUCT="Raspberry Pi Zero Display Gadget (lite)"
+	MAXPOWER=120 # mA
+elif [ "$HW" = "BCM2711" ]; then
+	PRODUCT="Raspberry Pi 4 Display Gadget (lite)"
+	MAXPOWER=500 # mA
+else
+	PRODUCT="$HW Display Gadget (lite)"
+	MAXPOWER=500 # mA
+fi
+
+# This image has not been configured to support a gadget console
+GCON=no
