@@ -195,41 +195,45 @@ class Device(object):
         self._formats = None
         self._properties = None
         self._connectors = None
+        self._interface = None
+        self.ep = None
         self.state = None
 
-    def config(self):
-        self.dev.set_configuration()
-        self.interface = None
+    @property
+    def interface(self):
+        if self._interface is not None:
+            return self._interface
+
+        try:
+            self.dev.set_configuration()
+        except usb.core.USBError as e:
+            if e.errno != errno.EBUSY:
+                raise e from None
+        # Pick the first Vendor Class Interface
         for itf in self.dev.get_active_configuration():
             if itf.bInterfaceClass == 0xff:
-                self.interface = itf
-        assert self.interface is not None
+                self._interface = itf
+                break
+        assert self._interface is not None
         self.ep = usb.util.find_descriptor(
-            self.interface,
+            self._interface,
             # match the first OUT endpoint
             custom_match = lambda e: usb.util.endpoint_direction(e.bEndpointAddress) == usb.util.ENDPOINT_OUT)
         assert self.ep is not None
 
-    def _get_ifnum(self, ifnum):
-        if ifnum is None:
-            if self.interface:
-                return self.interface.bInterfaceNumber
-            else:
-                return 0
-        else:
-            return ifnum
+        return self._interface
 
     def reset(self):
         self.dev.reset()
 
-    def is_kernel_driver_active(self, ifnum=None):
-        return self.dev.is_kernel_driver_active(self._get_ifnum(ifnum))
+    def is_kernel_driver_active(self):
+        return self.dev.is_kernel_driver_active(self.interface.bInterfaceNumber)
 
-    def detach_kernel_driver(self, ifnum=None):
-        self.dev.detach_kernel_driver(self._get_ifnum(ifnum))
+    def detach_kernel_driver(self):
+        self.dev.detach_kernel_driver(self.interface.bInterfaceNumber)
 
-    def attach_kernel_driver(self, ifnum=None):
-        self.dev.attach_kernel_driver(self._get_ifnum(ifnum))
+    def attach_kernel_driver(self):
+        self.dev.attach_kernel_driver(self.interface.bInterfaceNumber)
 
     @property
     def descriptor(self):
@@ -506,10 +510,8 @@ def find_first_setup():
     dev = find()
     if not dev:
         return None
-    if dev.is_kernel_driver_active(0):
-        dev.detach_kernel_driver(0)
-    dev.reset()
-    dev.config()
+    if dev.is_kernel_driver_active():
+        dev.detach_kernel_driver()
     for connector in dev.connectors:
         connector.update()
     return dev
