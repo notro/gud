@@ -1,17 +1,14 @@
 import os
 import struct
 from timeit import default_timer as timer
+import lz4
+import lz4.block
 import numpy
 from PIL import Image as PIL_Image
 from PIL import ImageDraw as PIL_ImageDraw
 from PIL import ImageFont
 from .gud_h import *
 
-try:
-    import lz4
-    import lz4.block
-except ModuleNotFoundError:
-    lz4 = None
 
 class Image(object):
     def __init__(self, dev, fmt, mode, color=0):
@@ -259,7 +256,7 @@ class Image(object):
             req.compression = 0
             req.compressed_length = 0
 
-            if compress and self.dev.descriptor.compression & GUD_COMPRESSION_LZ4 and lz4:
+            if compress and self.dev.descriptor.compression & GUD_COMPRESSION_LZ4:
                 compressed = lz4.block.compress(buf, return_bytearray=True, store_size=False)
                 if (len(compressed) <= len(buf)):
                     buf = compressed
