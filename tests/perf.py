@@ -4,8 +4,6 @@ import statistics
 from time import sleep
 from gud import *
 
-TEST_MODES = ((1920, 1080), (1024, 768), (800, 600), (640, 480))
-
 
 def compression_ratio(dev, state, ratio, iterations):
     img = Image(dev, state.format, state.mode)
@@ -32,6 +30,11 @@ def no_compression(dev, state, iterations):
     return min(elapsed), statistics.mean(elapsed), max(elapsed), parts
 
 
+def device_arg_split(arg):
+    vid, pid = str(arg).split(':')
+    return int(vid, 16), int(pid, 16)
+
+
 def main(args):
     fmt = None
     if args.format:
@@ -40,7 +43,12 @@ def main(args):
             print(f'Format not recognized: {args.format}')
             return
 
-    gud = find_first_setup()
+    if args.device:
+        vid, pid = device_arg_split(args.device)
+        gud = find_first_setup(idVendor=vid, idProduct=pid)
+    else:
+        gud = find_first_setup()
+
     if not gud:
         print('Failed to find a GUD device')
         return
@@ -79,6 +87,14 @@ def main(args):
         gud.controller_disable()
 
 
+def device_arg_check(arg):
+    try:
+        device_arg_split(arg)
+    except Exception:
+        raise argparse.ArgumentTypeError('Value has to be on the form: vid:pid')
+    return arg
+
+
 if __name__ == '__main__':
     modes = ' '.join([f'{mode[0]}x{mode[1]}' for mode in TEST_MODES])
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -90,6 +106,7 @@ By default runs performance tests on:
 - all formats (except ARGB8888 if XRGB8888 is supported)
 - all modes covered by {modes} (if not use all modes)
 ''')
+    parser.add_argument('--device', '-D', type=device_arg_check, help='Device to monitor: vid:pid (in hexadecimal)')
     parser.add_argument('-i', '--iterations', type=int, default=10, help='Number of flushes per test (default=10)')
     parser.add_argument('-k', '--keep', action='store_true', help="Don't disable display")
     parser.add_argument('-n', '--no-compress', action='store_true', help="Don't do the compression tests")

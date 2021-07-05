@@ -5,8 +5,6 @@ import sys
 from time import sleep
 from gud import *
 
-TEST_MODES = ((1920, 1080), (1024, 768), (800, 600), (640, 480))
-
 
 def test_all_rgb(dev, state, speed):
     if state.format < GUD_PIXEL_FORMAT_XRGB1111:
@@ -115,6 +113,11 @@ def test_one_backlight(dev, state, speed):
     print()
 
 
+def device_arg_split(arg):
+    vid, pid = str(arg).split(':')
+    return int(vid, 16), int(pid, 16)
+
+
 def main(args):
     fmt = None
     if args.format:
@@ -123,7 +126,12 @@ def main(args):
             print(f'Format not recognized: {args.format}')
             return
 
-    gud = find_first_setup()
+    if args.device:
+        vid, pid = device_arg_split(args.device)
+        gud = find_first_setup(idVendor=vid, idProduct=pid)
+    else:
+        gud = find_first_setup()
+
     if not gud:
         print('Failed to find a GUD device')
         return
@@ -159,6 +167,14 @@ def main(args):
         gud.controller_disable()
 
 
+def device_arg_check(arg):
+    try:
+        device_arg_split(arg)
+    except Exception:
+        raise argparse.ArgumentTypeError('Value has to be on the form: vid:pid')
+    return arg
+
+
 if __name__ == '__main__':
     tests = [method[9:] for method in globals().keys() if method.startswith('test_')]
     modes = ' '.join([f'{mode[0]}x{mode[1]}' for mode in TEST_MODES])
@@ -175,6 +191,7 @@ By default runs visual tests on:
 Some tests run only once on the default mode and format.
 ''')
     parser.add_argument('tests', nargs='*', default=tests, help=f'Tests: {" ".join(tests)}')
+    parser.add_argument('--device', '-D', type=device_arg_check, help='Device to monitor: vid:pid (in hexadecimal)')
     parser.add_argument('-s', '--speed', type=float, default=1.0, help='How fast to run the tests (default=1.0)')
     parser.add_argument('-k', '--keep', action='store_true', help="Don't disable display before exiting")
     parser.add_argument('-p', '--preferred-mode', action='store_true', help='Only use the preferred mode')

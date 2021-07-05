@@ -486,15 +486,15 @@ class Device(object):
         assert ret == len(buf)
 
 
+KNOWN_GUD_IDS = [(0x1d50, 0x614d), (0x16d0, 0x10a9)]
+
 def find(find_all=False, **args):
-    def is_vendor(dev):
-        import usb.util
-        for cfg in dev:
-            if usb.util.find_descriptor(cfg, bInterfaceClass=0xff) is not None:
-                return True
+    def is_gud(dev):
+        return (dev.idVendor, dev.idProduct) in KNOWN_GUD_IDS
 
     def device_iter(**kwargs):
-        for dev in usb.core.find(find_all=True, custom_match = is_vendor, **kwargs):
+        match = None if kwargs else is_gud
+        for dev in usb.core.find(find_all=True, custom_match = match, **kwargs):
             d = Device(dev)
             yield d
 
@@ -507,8 +507,8 @@ def find(find_all=False, **args):
             return None
 
 
-def find_first_setup():
-    dev = find()
+def find_first_setup(**kwargs):
+    dev = find(**kwargs)
     if not dev:
         return None
     if dev.is_kernel_driver_active():
