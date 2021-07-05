@@ -7,40 +7,6 @@ from gud import *
 
 TEST_MODES = ((1920, 1080), (1024, 768), (800, 600), (640, 480))
 
-def states(dev, preferred_mode, fmt):
-    connectors = [connector for connector in dev.connectors if connector.connected]
-    if not connectors:
-        print("Didn't find any connectors that were in a connected state")
-        return
-    connector = connectors[0]
-
-    # only use test modes and filter out similar sizes
-    modes = {}
-    for mode in connector.modes:
-        size = (mode.hdisplay, mode.vdisplay)
-        if (mode.hdisplay, mode.vdisplay) in TEST_MODES and not size in modes:
-            modes[size] = mode
-
-    if preferred_mode:
-        modes = [mode for mode in connector.modes if mode.flags & GUD_DISPLAY_MODE_FLAG_PREFERRED]
-        if not modes:
-            modes = (connector.modes[0], )
-    elif modes:
-        modes = modes.values()
-    else:
-        modes = connector.modes
-
-    if fmt:
-        formats = (fmt, )
-    else:
-        formats = dev.formats
-
-    for fmt in formats:
-        if len(formats) > 1 and fmt == GUD_PIXEL_FORMAT_ARGB8888 and GUD_PIXEL_FORMAT_XRGB8888 in dev.formats:
-            continue
-        for mode in modes:
-            yield State(dev, mode, fmt, connector)
-
 
 def test_all_rgb(dev, state, speed):
     if state.format < GUD_PIXEL_FORMAT_XRGB1111:
