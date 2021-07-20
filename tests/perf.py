@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+
+# SPDX-License-Identifier: CC0-1.0
+
 import argparse
 import os
 import statistics

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: CC0-1.0
+
 from .gud_h import *
 from .image import *
 

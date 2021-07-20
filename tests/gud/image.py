@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: CC0-1.0
+
 import os
 import struct
 from timeit import default_timer as timer
