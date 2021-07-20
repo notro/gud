@@ -1,6 +1,50 @@
+# SPDX-License-Identifier: CC0-1.0
+
 import pytest
 import ctypes
+import usb.core
 from gud import *
+
+
+@pytest.fixture(name='dev', scope='session')
+def gud_device():
+    dev = find()
+    if not dev:
+        raise "No device"
+    if dev.is_kernel_driver_active():
+        dev.detach_kernel_driver()
+    return dev
+
+@pytest.fixture(scope='module')
+def ensure_status_is_zero(dev):
+    dev.gud_usb_control_msg(True, GUD_REQ_GET_DESCRIPTOR, 0, ctypes.sizeof(ctypes.c_uint32))
+
+
+def test_get_status(dev):
+    assert dev.req_get_status() == 0
+
+def test_get_status_multiple(dev):
+    for _ in range(10):
+        assert dev.req_get_status() == 0
+
+@pytest.mark.stall
+def test_get_status_req_not_supported(dev):
+    with pytest.raises(usb.core.USBError) as exc_info:
+        dev.gud_usb_control_msg(True, GUD_REQ_UNSUPPORTED, 0, 1)
+    assert exc_info.value.errno == errno.EPIPE
+    # Device should not clear status when read
+    for _ in range(2):
+        assert dev.req_get_status() == GUD_STATUS_REQUEST_NOT_SUPPORTED
+
+@pytest.mark.stall
+def test_get_status_cleared_after_success(dev):
+    with pytest.raises(usb.core.USBError) as exc_info:
+        dev.gud_usb_control_msg(True, GUD_REQ_UNSUPPORTED, 0, 1)
+    assert exc_info.value.errno == errno.EPIPE
+    assert dev.req_get_status() == GUD_STATUS_REQUEST_NOT_SUPPORTED
+    # Clear status
+    dev.gud_usb_control_msg(True, GUD_REQ_GET_DESCRIPTOR, 0, ctypes.sizeof(ctypes.c_uint32))
+    assert dev.req_get_status() == 0
 
 
 def check_formats(formats):
@@ -34,6 +78,20 @@ def test_get_descriptor_magic_only(dev):
     ret = dev.gud_usb_control_msg(True, GUD_REQ_GET_DESCRIPTOR, 0, buf)
     assert len(ret) == len(buf)
     assert ctypes.c_uint32.from_buffer_copy(ret).value == GUD_DISPLAY_MAGIC
+
+
+@pytest.fixture(name='gud', scope='session')
+def gud_device_ready(dev):
+    for connector in dev.connectors:
+        connector.update()
+    return dev
+
+@pytest.fixture()
+def state(gud): #, update_connectors):
+    s = State(gud)
+    s.check()
+    s.commit()
+    return s
 
 @pytest.mark.parametrize("req,typ,num,check", [
     (GUD_REQ_GET_DESCRIPTOR, gud_drm_usb_vendor_descriptor, 2, None),
