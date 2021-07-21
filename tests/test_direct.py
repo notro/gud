@@ -2,18 +2,37 @@
 
 import pytest
 import ctypes
+import time
 import usb.core
 from gud import *
 
+pytestmark = pytest.mark.direct
 
-@pytest.fixture(name='dev', scope='session')
-def gud_device():
+# override the default, no need for a delay between these tests
+@pytest.fixture(autouse=True)
+def test_delay():
+    pass
+
+@pytest.fixture(name='dev', scope='module')
+def gud_device(pytestconfig):
     dev = find()
     if not dev:
-        raise "No device"
-    if dev.is_kernel_driver_active():
+        raise RuntimeError('No GUD device found')
+
+    try:
         dev.detach_kernel_driver()
-    return dev
+    except usb.core.USBError as e:
+        if e.errno == 13:
+            pytest.skip('No permission to unbind driver')
+            return
+        raise e
+    pytest.gud = None
+
+    yield dev
+
+    dev.attach_kernel_driver()
+    time.sleep(1)
+    pytest.gud = pytest.Display(xrgb8888_format=pytestconfig.getoption('--xrgb8888'))
 
 @pytest.fixture(scope='module')
 def ensure_status_is_zero(dev):
@@ -80,14 +99,14 @@ def test_get_descriptor_magic_only(dev):
     assert ctypes.c_uint32.from_buffer_copy(ret).value == GUD_DISPLAY_MAGIC
 
 
-@pytest.fixture(name='gud', scope='session')
+@pytest.fixture(name='gud', scope='module')
 def gud_device_ready(dev):
     for connector in dev.connectors:
         connector.update()
     return dev
 
 @pytest.fixture()
-def state(gud): #, update_connectors):
+def state(gud):
     s = State(gud)
     s.check()
     s.commit()
