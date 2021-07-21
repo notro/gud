@@ -89,6 +89,8 @@ def main(args):
     if not args.keep:
         gud.disable()
         gud.controller_disable()
+        # This didn't work gives -EBUSY
+        #gud.attach_kernel_driver()
 
 
 def device_arg_check(arg):
@@ -104,6 +106,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
         description=f'''
 GUD performance tester
+
+Runs tests directly to the device outside the kernel driver.
 
 By default runs performance tests on:
 - the first connected connector
