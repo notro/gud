@@ -14,6 +14,31 @@ def state(display):
     state.commit()
     return state
 
+
+def test_active(pytestconfig, display):
+    # make sure the pipeline is disabled
+    state = display.state(keep=True)
+    state.disable()
+
+    state.mode = display.connector.modes[0]
+    image = display.image(state.mode)
+    state.fb = image.fb
+
+    display.enabled = False
+    image.text('SHOULD NOT SHOW', color='white', fraction=0.8)
+    image.write()
+    # GUD_REQ_SET_DISPLAY_ENABLE should not be issued now:
+    state.commit()
+
+    time.sleep(pytestconfig.test_delay)
+
+    display.enabled = True
+    image.clear()
+    image.text('ACTIVE=1', color='white', fraction=0.8)
+    image.write()
+    state.commit()
+
+
 class TestProperties:
     @pytest.mark.skipif(not pytest.gud.rotation, reason='no rotation support')
     @pytest.mark.parametrize('reflection', [v for v in pytest.gud.rotation_values if 'reflect' in v] + ['reflect-none'])

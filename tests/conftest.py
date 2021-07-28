@@ -26,6 +26,11 @@ def pytest_addoption(parser):
     parser.addoption('--test-delay', type=int, default=5, help='Delay between tests (default 5 secs)')
 
 
+def pytest_configure(config):
+    config.test_delay = config.getoption('--test-delay')
+    if config.test_delay < 0:
+        config.test_delay = 0
+
 # https://stackoverflow.com/questions/42760059/how-to-make-pytest-wait-for-manual-user-action
 
 def getc():
@@ -41,13 +46,12 @@ def getc():
 @pytest.fixture(autouse=True)
 def test_delay(pytestconfig):
     yield
-    delay = pytestconfig.getoption('--test-delay')
     if sys.stdin.isatty(): # enable using cmdline option: -s
         c = getc()
         if c in [b'q', b'Q']:
             pytest.exit('User exit', 1)
-    elif delay > 0:
-        time.sleep(delay)
+    else:
+        time.sleep(pytestconfig.test_delay)
 
 
 @pytest.fixture(scope='module')
@@ -108,6 +112,7 @@ class Display:
         self.crtc = self.res.reserve_crtc(self.connector.base)
         self.plane = self.res.reserve_generic_plane(self.crtc)
         self.xrgb8888_format = xrgb8888_format
+        self.enabled = True
 
     @property
     def formats(self):
@@ -141,8 +146,12 @@ class Display:
     def image(self, mode, fmt=pykms.PixelFormat.XRGB8888):
         return Image(self, mode, fmt)
 
-    def state(self):
-        return State(self, self.connector)
+    # keep=True: Prevent gc when test variable goes out of scope which will disable the pipeline
+    #            This keeps the display on during test_delay fixture teardown
+    def state(self, keep=False):
+        state = State(self, self.connector)
+        self._state = state if keep else None
+        return state
 
 
 class State:
@@ -165,20 +174,28 @@ class State:
         kobj = getattr(obj, 'base', obj)
         self.properties.append((kobj, prop, val))
 
+    def _commit(self, req):
+        ret = req.commit_sync(allow_modeset = True)
+        if ret < 0:
+            raise OSError(-ret, os.strerror(-ret))
+
+    def disable(self):
+        req = pykms.AtomicReq(self.card)
+        req.add(self.crtc, {'ACTIVE': 0, 'MODE_ID': 0})
+        self._commit(req)
+
     def commit(self):
-        modeb = self.mode.to_blob(self.card)
+        mode_blob = self.mode.to_blob(self.card)
 
         req = pykms.AtomicReq(self.card)
         req.add_connector(self.connector.base, self.crtc)
-        req.add_crtc(self.crtc, modeb)
+        req.add(self.crtc, {'ACTIVE': int(self.display.enabled), 'MODE_ID': mode_blob.id})
         req.add_plane(self.plane, self.fb, self.crtc)
 
         for prop in self.properties:
             req.add(prop[0], prop[1], prop[2])
 
-        ret = req.commit_sync(allow_modeset = True)
-        if ret < 0:
-            raise OSError(-ret, os.strerror(-ret))
+        self._commit(req)
 
 
 class Image:
@@ -197,6 +214,9 @@ class Image:
         self.map = mmap.mmap(self.fb.fd(0), self.fb.size(0))
         self.image = PIL_Image.new(imgmode, (self.width, self.height), bgcolor)
         self.draw = PIL_ImageDraw.Draw(self.image)
+
+    def clear(self):
+        self.rect(0, 0, self.width, self.height, fill=0)
 
     def rect(self, x, y, width, height, fill=None, outline=None):
         # Pillow docs say: The second point is just outside the drawn rectangle.
