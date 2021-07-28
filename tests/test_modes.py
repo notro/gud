@@ -11,8 +11,8 @@ def pytest_generate_tests(metafunc):
     metafunc.parametrize('mode', modes, ids=[f'{mode.hdisplay}x{mode.vdisplay}' for mode in modes], scope='class')
 
 @pytest.fixture(scope='class')
-def state():
-    return pytest.gud.state()
+def state(display):
+    return display.state()
 
 @pytest.mark.parametrize('format', pytest.gud.formats, ids=[fmt.name for fmt in pytest.gud.formats])
 class TestModes:

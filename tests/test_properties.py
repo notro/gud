@@ -4,9 +4,9 @@ import pytest
 import pykms
 import time
 
+
 @pytest.fixture(scope='class')
-def state():
-    display = pytest.gud
+def state(display):
     state = display.state()
     state.mode = display.connector.modes[0]
     state.image = display.image(state.mode)

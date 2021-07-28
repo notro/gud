@@ -14,7 +14,7 @@ def test_delay():
     pass
 
 @pytest.fixture(name='dev', scope='module')
-def gud_device(pytestconfig):
+def gud_device(nodisplay):
     dev = find()
     if not dev:
         raise RuntimeError('No GUD device found')
@@ -26,13 +26,11 @@ def gud_device(pytestconfig):
             pytest.skip('No permission to unbind driver')
             return
         raise e
-    pytest.gud = None
 
     yield dev
 
     dev.attach_kernel_driver()
     time.sleep(1)
-    pytest.gud = pytest.Display(xrgb8888_format=pytestconfig.getoption('--xrgb8888'))
 
 @pytest.fixture(scope='module')
 def ensure_status_is_zero(dev):

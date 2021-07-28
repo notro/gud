@@ -18,7 +18,6 @@ from PIL import ImageFont as PIL_ImageFont
 
 
 def pytest_sessionstart(session):
-    pytest.Display = Display
     pytest.gud = Display(xrgb8888_format=session.config.getoption('--xrgb8888'))
 
 
@@ -49,6 +48,19 @@ def test_delay(pytestconfig):
             pytest.exit('User exit', 1)
     elif delay > 0:
         time.sleep(delay)
+
+
+@pytest.fixture(scope='module')
+def display(pytestconfig):
+    if not pytest.gud:
+        pytest.gud = Display(xrgb8888_format=pytestconfig.getoption('--xrgb8888'))
+    return pytest.gud
+
+
+# Release DRM device so others can become master
+@pytest.fixture(scope='module')
+def nodisplay():
+    pytest.gud = None
 
 
 class Connector:
