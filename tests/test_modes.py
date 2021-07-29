@@ -5,10 +5,11 @@ import time
 import pykms
 
 def pytest_generate_tests(metafunc):
-    # pytest parametrize runs each test through all parameters before moving on to the next test
-    # at least vc4 (rPi) has slow modesetting so this makes sure that tests are run sequentially using the same display mode
-    modes = pytest.gud.test_modes()
-    metafunc.parametrize('mode', modes, ids=[f'{mode.hdisplay}x{mode.vdisplay}' for mode in modes], scope='class')
+    if list(metafunc.definition.iter_markers(name="parametrize")):
+        # pytest parametrize runs each test through all parameters before moving on to the next test
+        # at least vc4 (rPi) has slow modesetting so this makes sure that tests are run sequentially using the same display mode
+        modes = pytest.gud.test_modes()
+        metafunc.parametrize('mode', modes, ids=[f'{mode.hdisplay}x{mode.vdisplay}' for mode in modes], scope='class')
 
 @pytest.fixture(scope='class')
 def state(display):
@@ -58,3 +59,8 @@ class TestModes:
                 image.rect(x * w + dot_off, y * w + dot_off, dot_w, dot_w, fill=colors[x % len(colors)])
                 image.flush(x * w, y * w, w, w)
                 time.sleep(0.5)
+
+def test_has_only_one_preferred_mode(display):
+    DRM_MODE_TYPE_PREFERRED = (1<<3)
+    preferred_modes = [mode for mode in display.connector.modes if mode.type & DRM_MODE_TYPE_PREFERRED]
+    assert len(preferred_modes) == 1
