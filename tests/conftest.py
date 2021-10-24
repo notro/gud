@@ -22,7 +22,7 @@ def pytest_sessionstart(session):
 
 
 def pytest_addoption(parser):
-    parser.addoption('--xrgb8888', help='XRGB8888 emulated format', choices=('R1', 'XRGB1111', 'RGB565'))
+    parser.addoption('--xrgb8888', help='XRGB8888 emulated format', choices=('R1', 'R8', 'XRGB1111', 'RGB332', 'RGB565', 'RGB888'))
     parser.addoption('--test-delay', type=int, default=5, help='Delay between tests (default 5 secs)')
 
 
@@ -117,7 +117,7 @@ class Display:
     @property
     def formats(self):
         formats = self.plane.formats
-        if self.xrgb8888_format:
+        if self.xrgb8888_format and self.xrgb8888_format not in ('R1', 'R8', 'XRGB1111'):
             formats.remove(pykms.PixelFormat.XRGB8888)
         return formats
 
@@ -202,10 +202,13 @@ class Image:
     def __init__(self, display, mode, fmt=pykms.PixelFormat.XRGB8888):
         if fmt == pykms.PixelFormat.XRGB8888:
             imgmode = 'RGBX'
-        elif fmt == pykms.PixelFormat.RGB565:
+        elif fmt in (pykms.PixelFormat.RGB888, pykms.PixelFormat.RGB565, pykms.PixelFormat.RGB332):
             imgmode = 'RGB'
+        elif int(fmt) == 0x20203852: # R8 is not supported by pykms
+            fmt = pykms.PixelFormat.XRGB8888
+            imgmode = 'RGBX'
         else:
-            raise ValueError(f'Format not supported: {fmt}')
+            raise ValueError(f'Format not supported: {fmt} : {hex(int(fmt))}')
         self.format = fmt
         bgcolor = 0
         self.display = display
@@ -258,6 +261,8 @@ class Image:
     def write(self):
         if self.format == pykms.PixelFormat.XRGB8888:
             buf = self.image.tobytes('raw', 'BGRX')
+        elif self.format == pykms.PixelFormat.RGB888:
+            buf = bytes(self.image)
         elif self.format == pykms.PixelFormat.RGB565:
             # https://helperbyte.com/questions/180384/than-to-convert-a-picture-in-format-bmp565-in-python
             rgb888 = numpy.asarray(self.image)
@@ -271,6 +276,14 @@ class Image:
             b5 = (rgb888[..., 2] >> 3 & 0x1f).astype(numpy.uint16)
             rgb565 = r5 << 11 | g6 << 5 | b5
             buf = bytes(rgb565)
+        elif self.format == pykms.PixelFormat.RGB332:
+            rgb888 = numpy.asarray(self.image)
+            assert rgb888.shape[-1] == 3 and rgb888.dtype == numpy.uint8
+            r3 = (rgb888[..., 0] >> 5).astype(numpy.uint8)
+            g3 = (rgb888[..., 1] >> 5).astype(numpy.uint8)
+            b2 = (rgb888[..., 2] >> 6).astype(numpy.uint8)
+            rgb332 = r3 << 5 | g3 << 2 | b2
+            buf = bytes(rgb332)
 
         self.map.seek(0)
         self.map.write(buf)
