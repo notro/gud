@@ -23,6 +23,9 @@ fi
 if grep -q rgb565 /proc/cmdline; then
 	# GUD_PIXEL_FORMAT_RGB565
 	FORMATS="@"
+elif grep -q rgb888 /proc/cmdline; then
+	# GUD_PIXEL_FORMAT_RGB888
+	FORMATS="P"
 fi
 if grep -q 'connectors=' /proc/cmdline; then
 	CONNECTORS=$(cat /proc/cmdline | xargs -n1 | grep 'connectors=' | cut -d'=' -f2)
