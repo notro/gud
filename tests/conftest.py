@@ -262,7 +262,7 @@ class Image:
         if self.format == pykms.PixelFormat.XRGB8888:
             buf = self.image.tobytes('raw', 'BGRX')
         elif self.format == pykms.PixelFormat.RGB888:
-            buf = bytes(self.image)
+            buf = self.image.tobytes('raw', 'BGR')
         elif self.format == pykms.PixelFormat.RGB565:
             # https://helperbyte.com/questions/180384/than-to-convert-a-picture-in-format-bmp565-in-python
             rgb888 = numpy.asarray(self.image)
