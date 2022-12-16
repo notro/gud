@@ -1,0 +1,49 @@
+From 5a4b11e3fac160bfa78c41ec9ab5fc3e467646ed Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
+Date: Sat, 3 Sep 2022 16:38:00 +0200
+Subject: [PATCH] drm/gud gadget: Rename dma_buf_map* to iosys_map*
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Changed in Linux 6.0
+
+Commit 7938f4218168 ("dma-buf-map: Rename to iosys-map")
+
+Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+---
+ drivers/gpu/drm/gud/gud_gadget.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/gud/gud_gadget.c b/drivers/gpu/drm/gud/gud_gadget.c
+index 60ed07c05a58..340400bf252d 100644
+--- a/drivers/gpu/drm/gud/gud_gadget.c
++++ b/drivers/gpu/drm/gud/gud_gadget.c
+@@ -394,7 +394,7 @@ static size_t gud_gadget_write_buffer_memcpy(struct drm_client_buffer *buffer,
+ 	unsigned int cpp = buffer->fb->format->cpp[0];
+ 	size_t src_pitch = drm_rect_width(rect) * cpp;
+ 	size_t dst_pitch = buffer->fb->pitches[0];
+-	struct dma_buf_map dst;
++	struct iosys_map dst;
+ 	unsigned int y;
+ 	int ret;
+ 
+@@ -402,12 +402,12 @@ static size_t gud_gadget_write_buffer_memcpy(struct drm_client_buffer *buffer,
+ 	if (ret)
+ 		return len;
+ 
+-	dma_buf_map_incr(&dst, rect->y1 * dst_pitch + rect->x1 * cpp);
++	iosys_map_incr(&dst, rect->y1 * dst_pitch + rect->x1 * cpp);
+ 
+ 	for (y = 0; y < drm_rect_height(rect) && len; y++) {
+ 		src_pitch = min(src_pitch, len);
+-		dma_buf_map_memcpy_to(&dst, src, src_pitch);
+-		dma_buf_map_incr(&dst, dst_pitch);
++		iosys_map_memcpy_to(&dst, 0, src, src_pitch);
++		iosys_map_incr(&dst, dst_pitch);
+ 		src += src_pitch;
+ 		len -= src_pitch;
+ 	}
+-- 
+2.34.1
+

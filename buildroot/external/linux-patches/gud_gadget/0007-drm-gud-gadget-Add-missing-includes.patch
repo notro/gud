@@ -1,0 +1,42 @@
+From 54f8bb16a40c1dc7f37eac2b4646f1c51a2d1ce6 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
+Date: Fri, 2 Sep 2022 15:31:47 +0200
+Subject: [PATCH] drm/gud: gadget: Add missing includes
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+On Linux 5.19:
+
+drivers/gpu/drm/gud/gud_gadget.c:817:25: error: ‘EDID_LENGTH’ undeclared (first use in this function)
+  817 |  size = rounddown(size, EDID_LENGTH);
+      |                         ^~~~~~~~~~~
+
+drivers/gpu/drm/gud/gud_gadget.c:191:11: error: dereferencing pointer to incomplete type ‘struct drm_framebuffer’
+  191 |  return fb->format->format == format &&
+      |           ^~
+
+Include the missing header files.
+
+Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+---
+ drivers/gpu/drm/gud/gud_gadget.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/gud/gud_gadget.c b/drivers/gpu/drm/gud/gud_gadget.c
+index dfbf84342255..60ed07c05a58 100644
+--- a/drivers/gpu/drm/gud/gud_gadget.c
++++ b/drivers/gpu/drm/gud/gud_gadget.c
+@@ -15,7 +15,9 @@
+ #include <drm/drm_client.h>
+ #include <drm/drm_connector.h>
+ #include <drm/drm_crtc.h>
++#include <drm/drm_edid.h>
+ #include <drm/drm_fourcc.h>
++#include <drm/drm_framebuffer.h>
+ #include <drm/drm_mode_object.h>
+ #include <drm/drm_plane.h>
+ #include <drm/drm_rect.h>
+-- 
+2.34.1
+
