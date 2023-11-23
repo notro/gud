@@ -1,0 +1,39 @@
+From da7b96ee6a2553a49195f22f0bf7019e2b199871 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Noralf=20Tr=C3=B8nnes?= <noralf@tronnes.org>
+Date: Fri, 2 Sep 2022 15:26:49 +0200
+Subject: [PATCH] usb/gadget/function/gud: Fix u32 overflow
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+On a 64-bit build:
+
+drivers/usb/gadget/function/f_gud.c: In function ‘f_gud_a              lloc_func_inst’:
+drivers/usb/gadget/function/f_gud.c:855:21: warning: conversion from ‘long unsigned int’ to ‘u32’ {aka ‘unsigned int’} changes value from ‘18446744073709551615’ to ‘4294967295’               [-Woverflow]
+  855 |  opts->connectors = ~0UL;
+
+Change to unsigned.
+
+Fixes #8
+
+Signed-off-by: Noralf Trønnes <noralf@tronnes.org>
+---
+ drivers/usb/gadget/function/f_gud.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/usb/gadget/function/f_gud.c b/drivers/usb/gadget/function/f_gud.c
+index 0e0e5717c69d..826d5582d6cf 100644
+--- a/drivers/usb/gadget/function/f_gud.c
++++ b/drivers/usb/gadget/function/f_gud.c
+@@ -852,7 +852,7 @@ static struct usb_function_instance *f_gud_alloc_func_inst(void)
+ 	mutex_init(&opts->lock);
+ 	opts->func_inst.free_func_inst = f_gud_free_func_inst;
+ 	opts->compression = ~0;
+-	opts->connectors = ~0UL;
++	opts->connectors = ~0U;
+ 
+ 	config_group_init_type_name(&opts->func_inst.group, "", &f_gud_func_type);
+ 
+-- 
+2.34.1
+
