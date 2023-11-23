@@ -2,7 +2,7 @@
 
 set -e
 
-BUILDROOT_VERSION="2021.02.1"
+BUILDROOT_VERSION="2021.02.12"
 
 if [[ -z ${BR2_DL_DIR} ]]; then
 	DL_DIR="$(pwd)/downloads"
